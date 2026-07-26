@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.2 — 2026-07-27
+
+### Fixed — the CP inspector was largely unstyled
+
+Same two causes as `statamic-activity` v1.0.1, fixed the same way:
+
+- **Statamic 6 ships no utility classes.** Its Control Panel is a Vue component library and its stylesheet contains only what Statamic's own source uses; an addon's Blade file is never scanned. `mb-4`, `flex`, `gap-3`, `btn-primary` and `badge-sm` therefore did not exist at runtime — filter inputs rendered invisible, buttons as bare text, no spacing. `.card`, `.data-table` and `.input-text` do exist and are kept.
+- **A `<style>` tag inside the page content is silently dropped**, because Statamic 6 compiles a Blade CP page into a Vue component template and Vue's compiler strips `<style>`. The rules now live in `@section('scripts')`, which the layout yields outside the `#statamic` mount point.
+- Styling derives from the CP's design tokens (`--color-primary`, `--radius-*`, `--text-*`) and `currentColor`, so light and dark follow automatically. The unread marker is a real pill again, and the "unread only" checkbox reads as one line instead of a label stacked over a lone box.
+
+### Notes
+
+- Found by looking at the pages in a browser. The tests asserted HTTP 200 and expected strings — true throughout, and blind to styling.
+- Suite unchanged: **57 passed (121 assertions)**.
+
 ## 1.0.1 — 2026-07-26
 
 ### Fixed — immediate mails were repeated in the digest

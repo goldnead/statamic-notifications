@@ -2,36 +2,39 @@
 @section('title', __('notifications::cp.title'))
 
 @section('content')
-    <header class="mb-6">
+
+    <header class="notif-inspector__header">
         <h1>{{ __('notifications::cp.title') }}</h1>
-        <p class="text-gray-500 text-sm mt-1">{{ __('notifications::cp.intro') }}</p>
+        <p class="notif-inspector__intro">{{ __('notifications::cp.intro') }}</p>
     </header>
 
-    <div class="card p-4 mb-4">
-        <form method="GET" class="flex flex-wrap items-end gap-3">
-            <div>
-                <label class="text-xs font-medium block mb-1">{{ __('notifications::cp.filter_type') }}</label>
-                <input type="text" name="type" class="input-text" value="{{ $filters['type'] ?? '' }}">
+    <div class="card notif-inspector__panel">
+        <form method="GET" class="notif-inspector__filters">
+            <div class="notif-inspector__field">
+                <label class="notif-inspector__label" for="filter-type">{{ __('notifications::cp.filter_type') }}</label>
+                <input id="filter-type" type="text" name="type" class="notif-inspector__input" value="{{ $filters['type'] ?? '' }}">
             </div>
-            <div>
-                <label class="text-xs font-medium block mb-1">{{ __('notifications::cp.filter_user') }}</label>
-                <input type="text" name="user_id" class="input-text" value="{{ $filters['user_id'] ?? '' }}">
+            <div class="notif-inspector__field">
+                <label class="notif-inspector__label" for="filter-user">{{ __('notifications::cp.filter_user') }}</label>
+                <input id="filter-user" type="text" name="user_id" class="notif-inspector__input" value="{{ $filters['user_id'] ?? '' }}">
             </div>
-            <label class="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="unread" value="1" @checked(! empty($filters['unread']))>
-                {{ __('notifications::cp.filter_unread') }}
-            </label>
-            <div class="flex gap-2">
-                <button type="submit" class="btn-primary">{{ __('notifications::cp.filter_submit') }}</button>
-                <a href="{{ cp_route('notifications.index') }}" class="btn">{{ __('notifications::cp.filter_reset') }}</a>
+            <div class="notif-inspector__field notif-inspector__field--inline">
+                <input id="filter-unread" type="checkbox" name="unread" value="1" @checked(! empty($filters['unread']))>
+                <label class="notif-inspector__label" for="filter-unread">{{ __('notifications::cp.filter_unread') }}</label>
+            </div>
+            <div class="notif-inspector__field">
+                <button type="submit" class="notif-inspector__button notif-inspector__button--primary">{{ __('notifications::cp.filter_submit') }}</button>
+            </div>
+            <div class="notif-inspector__field">
+                <a href="{{ cp_route('notifications.index') }}" class="notif-inspector__button notif-inspector__button--plain">{{ __('notifications::cp.filter_reset') }}</a>
             </div>
         </form>
     </div>
 
     @if ($notifications->isEmpty())
-        <div class="card p-6 text-center text-gray-500">{{ __('notifications::cp.empty') }}</div>
+        <div class="card notif-inspector__empty">{{ __('notifications::cp.empty') }}</div>
     @else
-        <div class="card p-0 overflow-x-auto">
+        <div class="card notif-inspector__scroll">
             <table class="data-table">
                 <thead>
                     <tr>
@@ -56,7 +59,7 @@
                                 @if ($notification->read_at)
                                     {{ $notification->read_at->format('Y-m-d H:i') }}
                                 @else
-                                    <span class="badge-sm">{{ __('notifications::cp.unread') }}</span>
+                                    <span class="notif-inspector__badge">{{ __('notifications::cp.unread') }}</span>
                                 @endif
                             </td>
                             <td>{{ $notification->digested_at?->format('Y-m-d H:i') ?? '—' }}</td>
@@ -66,6 +69,14 @@
             </table>
         </div>
 
-        <div class="mt-4">{{ $notifications->links() }}</div>
+        <div class="notif-inspector__pagination">{{ $notifications->links() }}</div>
     @endif
+@endsection
+
+{{-- Deliberately in 'scripts', not 'content': Statamic 6 compiles the yielded
+     Blade of a CP page into a Vue component template, and Vue's template
+     compiler strips <style> tags. The 'scripts' yield sits outside the
+     #statamic mount point, so the rules survive. --}}
+@section('scripts')
+    @include('notifications::cp._styles')
 @endsection
