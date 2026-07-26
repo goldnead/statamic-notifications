@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.1 — 2026-07-26
+
+### Fixed — immediate mails were repeated in the digest
+
+- **A digest collected every pending item, regardless of channel.** A type whose default channels include `mail` was therefore sent immediately *and* summarised again days later. The digest now collects only what the recipient actually wants digested; items considered and skipped are stamped too, so a later preference change cannot resurface weeks-old notifications.
+- Found by the hub integration, not by the addon's own suite: the bundled LeadHub type is the first one in the family whose defaults are `in_app` + `mail`, so nothing in the standalone tests exercised that combination. Two regression tests added.
+
+### Notes
+
+- Suite: **57 passed (121 assertions)**.
+
 ## 1.0.0 — 2026-07-26
 
 ### Added — persisted notifications

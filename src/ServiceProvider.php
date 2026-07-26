@@ -60,6 +60,7 @@ class ServiceProvider extends AddonServiceProvider
 
         $this->app->singleton(DigestBuilder::class, fn ($app) => new DigestBuilder(
             $app->make(SourceRegistry::class),
+            $app->make(PreferenceResolver::class),
         ));
 
         $this->app->bind(RecipientDirectory::class, PendingItemRecipientDirectory::class);

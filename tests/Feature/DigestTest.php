@@ -115,3 +115,30 @@ it('changes nothing on a dry run', function (): void {
 it('rejects an unknown frequency', function (): void {
     $this->artisan('notifications:send-digests', ['--frequency' => 'hourly'])->assertFailed();
 });
+
+it('leaves out types the recipient does not want digested', function (): void {
+    // Regression: a type whose default channels are in_app+mail was mailed
+    // immediately AND repeated in the weekly summary a few days later.
+    Notifications::registerType('crm.lead_assigned', fn ($type) => $type->defaultChannels(['in_app', 'mail']));
+
+    Notifications::notify(Identity::user(1, 'a@example.com'), 'crm.lead_assigned', ['message' => 'sofort']);
+    notifyAt(now()->subDay()->toDateTimeString(), 'im digest');
+
+    $collected = $this->builder->collect(Identity::user(1), 'weekly');
+
+    expect($collected['items'])->toHaveCount(1)
+        ->and($collected['items']->first()->message)->toBe('im digest')
+        ->and($collected['skipped'])->toHaveCount(1);
+});
+
+it('stamps skipped items so a later preference change cannot resurface them', function (): void {
+    Notifications::registerType('crm.lead_assigned', fn ($type) => $type->defaultChannels(['mail']));
+
+    $mailed = Notifications::notify(Identity::user(1, 'a@example.com'), 'crm.lead_assigned');
+    notifyAt(now()->subDay()->toDateTimeString());
+
+    $collected = $this->builder->collect(Identity::user(1), 'weekly');
+    $this->builder->markSent(Identity::user(1), 'weekly', $collected);
+
+    expect($mailed->fresh()->digested_at)->not->toBeNull();
+});

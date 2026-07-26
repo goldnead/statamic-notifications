@@ -6,6 +6,7 @@ use Goldnead\BrandContext\Facades\BrandContext;
 use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Models\NotificationDigestRun;
 use Goldnead\Notifications\Models\NotificationItem;
+use Goldnead\Notifications\Preferences\PreferenceResolver;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -26,7 +27,10 @@ use Illuminate\Support\Collection;
  */
 class DigestBuilder
 {
-    public function __construct(protected SourceRegistry $sources) {}
+    public function __construct(
+        protected SourceRegistry $sources,
+        protected PreferenceResolver $preferences,
+    ) {}
 
     /** @return array{start: Carbon, end: Carbon} */
     public function window(string $frequency, ?Carbon $now = null): array
@@ -50,7 +54,7 @@ class DigestBuilder
     {
         $window = $this->window($frequency, $now);
 
-        $items = NotificationItem::query()
+        $candidates = NotificationItem::query()
             ->forRecipient($recipient)
             ->pendingDigest()
             ->where('created_at', '>=', $window['start'])
@@ -58,8 +62,16 @@ class DigestBuilder
             ->orderBy('created_at')
             ->get();
 
+        // Only types this recipient actually wants digested belong in the mail.
+        // Without this split, anything that already went out as an immediate
+        // e-mail would be repeated in the summary a few days later.
+        [$items, $skipped] = $candidates->partition(
+            fn (NotificationItem $item) => $this->preferences->allows($recipient, $item->type, 'digest')
+        );
+
         return [
-            'items' => $items,
+            'items' => $items->values(),
+            'skipped' => $skipped->values(),
             'extras' => $this->sources->collect($recipient, $window['start'], $window['end']),
             'window' => $window,
         ];
@@ -96,10 +108,14 @@ class DigestBuilder
             'sent_at' => now(),
         ]);
 
-        if ($collected['items']->isNotEmpty()) {
-            NotificationItem::query()
-                ->whereIn('id', $collected['items']->pluck('id'))
-                ->update(['digested_at' => now()]);
+        // Stamp the ones that were skipped too: they were considered for this
+        // window and rejected. Leaving them pending would mean a later
+        // preference change silently resurfaces weeks-old items.
+        $stamp = $collected['items']->pluck('id')
+            ->merge(($collected['skipped'] ?? collect())->pluck('id'));
+
+        if ($stamp->isNotEmpty()) {
+            NotificationItem::query()->whereIn('id', $stamp)->update(['digested_at' => now()]);
         }
 
         return $run;
