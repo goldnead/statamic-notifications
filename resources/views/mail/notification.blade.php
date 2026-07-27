@@ -11,8 +11,8 @@
             <h1 style="font-size:20px;margin:0 0 16px;color:#18181b;">{{ $title }}</h1>
         @endif
 
-        @if ($message)
-            <p style="color:#52525b;line-height:1.6;">{{ $message }}</p>
+        @if ($body)
+            <p style="color:#52525b;line-height:1.6;">{{ $body }}</p>
         @endif
 
         @if ($link)

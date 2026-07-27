@@ -92,3 +92,37 @@ it('builds a preference matrix marking deviations', function (): void {
         ->and($mention['channels']['mail']['is_default'])->toBeFalse()
         ->and($mention['channels']['in_app']['is_default'])->toBeTrue();
 });
+
+it('actually renders the notification mail', function (): void {
+    // Regression: the mail channel silently sent nothing for every notification.
+    // The view was handed a variable called `message`, which Laravel's Mailer
+    // always overwrites with its own Illuminate\Mail\Message — so rendering died
+    // with "htmlspecialchars(): Argument #1 must be of type string", the
+    // exception was swallowed by report() in dispatchChannels(), and notify()
+    // still reported success.
+    //
+    // Mail::assertSent() could never have caught this: a faked mailer records
+    // the mailable without ever rendering it. Only ->render() executes the view.
+    $item = Notifications::notify(Identity::user(1, 'a@example.com'), 'community.mention', [
+        'message' => 'Bea hat dich erwähnt.',
+        'link' => '/account/community/posts/9',
+    ]);
+
+    $rendered = Notifications::render($item);
+    $html = (new \Goldnead\Notifications\Mail\NotificationMail($item, $rendered))->render();
+
+    expect($html)->toContain('Bea hat dich erwähnt.')
+        ->and($html)->toContain('/account/community/posts/9');
+});
+
+it('renders the digest mail', function (): void {
+    Notifications::registerType('community.reply', fn ($type) => $type->defaultChannels(['in_app', 'digest']));
+
+    $recipient = Identity::user(1, 'a@example.com');
+    Notifications::notify($recipient, 'community.reply', ['message' => 'Neue Antwort']);
+
+    $collected = app(\Goldnead\Notifications\Digest\DigestBuilder::class)->collect($recipient, 'weekly');
+    $html = (new \Goldnead\Notifications\Mail\DigestMail($recipient, $collected, 'weekly'))->render();
+
+    expect($html)->toContain('Neue Antwort');
+});

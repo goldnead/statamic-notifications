@@ -1,5 +1,6 @@
 <?php
 
+use Goldnead\BrandContext\Facades\BrandContext;
 use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Digest\DigestBuilder;
 use Goldnead\Notifications\Facades\Notifications;
@@ -141,4 +142,50 @@ it('stamps skipped items so a later preference change cannot resurface them', fu
     $this->builder->markSent(Identity::user(1), 'weekly', $collected);
 
     expect($mailed->fresh()->digested_at)->not->toBeNull();
+});
+
+it('walks every brand when none is current — the scheduler case', function (): void {
+    // Regression: a scheduled run has no CP session, so no brand is current.
+    // Under multi-brand the global scope then fails closed and the command
+    // reported "0 digest(s)" forever without anyone noticing.
+    Mail::fake();
+    $this->enableMultiBrand();
+    $brandA = $this->makeBrand('brand-a');
+    $brandB = $this->makeBrand('brand-b');
+
+    foreach ([$brandA, $brandB] as $brand) {
+        BrandContext::runFor($brand, function (): void {
+            Notifications::registerType('community.reply', fn ($t) => $t->defaultChannels(['in_app', 'digest']));
+            $item = Notifications::notify(Identity::user(1, 'a@example.com'), 'community.reply', ['message' => 'x']);
+            $item->forceFill(['created_at' => now()->subDay()])->save();
+        });
+    }
+
+    BrandContext::forget();
+
+    $this->artisan('notifications:send-digests', ['--frequency' => 'weekly'])->assertSuccessful();
+
+    // One per brand — the same person in two brands is two recipients.
+    Mail::assertSent(DigestMail::class, 2);
+});
+
+it('can be restricted to a single brand', function (): void {
+    Mail::fake();
+    $this->enableMultiBrand();
+    $brandA = $this->makeBrand('brand-a');
+    $this->makeBrand('brand-b');
+
+    BrandContext::runFor($brandA, function (): void {
+        Notifications::registerType('community.reply', fn ($t) => $t->defaultChannels(['in_app', 'digest']));
+        $item = Notifications::notify(Identity::user(1, 'a@example.com'), 'community.reply', ['message' => 'x']);
+        $item->forceFill(['created_at' => now()->subDay()])->save();
+    });
+
+    BrandContext::forget();
+
+    $this->artisan('notifications:send-digests', ['--frequency' => 'weekly', '--brand' => 'brand-b'])->assertSuccessful();
+    Mail::assertNothingSent();
+
+    $this->artisan('notifications:send-digests', ['--frequency' => 'weekly', '--brand' => 'brand-a'])->assertSuccessful();
+    Mail::assertSent(DigestMail::class, 1);
 });

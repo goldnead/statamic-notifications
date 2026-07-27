@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.3 — 2026-07-27
+
+### Fixed — the mail channel never sent a single notification
+
+- **Every immediate e-mail failed silently.** The view was handed a variable named `message`, and Laravel's Mailer always injects its own `Illuminate\Mail\Message` under exactly that name. Rendering therefore died with *"htmlspecialchars(): Argument #1 must be of type string"*, the exception was swallowed by the deliberate `report()` in `dispatchChannels()`, and `notify()` still reported success. Three notifications with channel `mail`, zero mails sent. Renamed to `body`.
+- **The existing tests could not have caught it.** `Mail::assertSent()` records a mailable without ever rendering it. Two new tests call `->render()` on both mailables and assert on the produced HTML — that is the only assertion that executes the view.
+
+### Fixed — scheduled digests were a silent no-op under multi-brand
+
+- **`notifications:send-digests` sent nothing when run by a scheduler.** A console run has no CP session, so no brand is current; the global scope then fails closed and every query returns nothing. The command reported "0 digest(s)" and looked healthy. It now walks every brand itself, with `--brand=<handle|id>` to restrict.
+- Two new tests cover the scheduler case (no current brand, one mail per brand) and the restriction.
+
+### Notes
+
+- Both found in the local QA run against a real multi-brand hub. Neither was visible in the addon's own suite, which runs single-brand with a faked mailer.
+- Suite: **61 passed (130 assertions)**.
+
 ## 1.0.2 — 2026-07-27
 
 ### Fixed — the CP inspector was largely unstyled

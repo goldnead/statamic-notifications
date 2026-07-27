@@ -32,7 +32,11 @@ class NotificationMail extends Mailable
             with: [
                 'item' => $this->item,
                 'title' => $this->rendered['title'] ?? null,
-                'message' => $this->rendered['message'] ?? null,
+                // NOT `message`: Laravel's Mailer always injects its own
+                // Illuminate\Mail\Message under that name, so a view variable
+                // called `message` is silently replaced and the render dies with
+                // "htmlspecialchars(): Argument #1 must be of type string".
+                'body' => $this->rendered['message'] ?? null,
                 'link' => $this->rendered['link'] ?? null,
             ],
         );

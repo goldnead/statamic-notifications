@@ -7,6 +7,8 @@ use Goldnead\Notifications\Contracts\RecipientDirectory;
 use Goldnead\Notifications\Digest\DigestBuilder;
 use Goldnead\Notifications\Mail\DigestMail;
 use Goldnead\Notifications\Preferences\PreferenceResolver;
+use Goldnead\BrandContext\Facades\BrandContext;
+use Goldnead\BrandContext\Models\Brand;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
@@ -15,6 +17,7 @@ class SendDigestsCommand extends Command
 {
     protected $signature = 'notifications:send-digests
                             {--frequency=weekly : daily or weekly}
+                            {--brand= : Restrict to one brand handle or id (default: every brand)}
                             {--now= : Treat this timestamp as "now" (testing and catch-up runs)}
                             {--dry-run : Report what would be sent without sending or marking}';
 
@@ -32,6 +35,48 @@ class SendDigestsCommand extends Command
 
             return self::FAILURE;
         }
+
+        // A console run has no CP session, so no brand is current. Under
+        // multi-brand the global scope then fails closed and every query returns
+        // nothing — a scheduled digest would silently send zero mails forever.
+        // So the command walks the brands itself.
+        foreach ($this->brands() as $brand) {
+            if ($brand !== null) {
+                $this->line("Brand: {$brand->handle}");
+            }
+
+            $exit = BrandContext::runFor($brand ?? BrandContext::defaultId(), fn () => $this->sendFor(
+                $builder, $preferences, $directory, $frequency
+            ));
+
+            if ($exit !== self::SUCCESS) {
+                return $exit;
+            }
+        }
+
+        return self::SUCCESS;
+    }
+
+    /** @return iterable<Brand|null> */
+    protected function brands(): iterable
+    {
+        if (! BrandContext::multiBrandEnabled()) {
+            return [null];
+        }
+
+        if ($handle = $this->option('brand')) {
+            return [Brand::query()->where('handle', $handle)->orWhere('id', $handle)->firstOrFail()];
+        }
+
+        return Brand::query()->orderBy('id')->get();
+    }
+
+    protected function sendFor(
+        DigestBuilder $builder,
+        PreferenceResolver $preferences,
+        RecipientDirectory $directory,
+        string $frequency,
+    ): int {
 
         $now = $this->option('now') ? Carbon::parse($this->option('now')) : null;
         $dryRun = (bool) $this->option('dry-run');
