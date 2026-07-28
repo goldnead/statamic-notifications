@@ -70,6 +70,14 @@ what made the system it replaces impossible to extract.
 Unregistered types still deliver (in-app, using whatever the producer passed), so
 a missing registration never silently swallows someone's notification.
 
+**Register types in a service provider, not in the calling code.** The registry
+lives per process. A type registered ad hoc — inside a controller, a console
+one-off — is unknown to the scheduled digest process, falls back to the `in_app`
+default and is silently skipped there. The notification exists and is never
+summarised. That skipping is deliberate (it is what stops an immediate e-mail
+being repeated days later), which is precisely why the registration has to be
+global.
+
 `->required()` makes a type ignore preferences. For account security and legal
 notices only.
 
@@ -185,6 +193,20 @@ composer install && vendor/bin/pest
 
 The Integration suite exercises the bundled LeadHub source against the real
 addon and skips itself when it is not installed.
+
+The default run uses in-memory SQLite. The same suite can be pointed at a real
+MySQL server, which is worth doing before a release:
+
+```bash
+vendor/bin/pest -c phpunit.mysql.xml
+```
+
+SQLite is not a substitute for it. It has no index length limit, no fixed column
+widths and no per-character byte cost, so a schema that MySQL refuses outright
+can pass a fully green SQLite run — which is how v1.0.4's defect reached
+production. `tests/Unit/IndexKeyLengthTest.php` closes that particular gap
+without needing a server: it compiles the migrations through Laravel's MySQL
+grammar and measures every index against InnoDB's 3072-byte limit.
 
 ## License
 

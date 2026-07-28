@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.0.4 — 2026-07-28
+
+### Fixed — two tables could not be created on MySQL at all
+
+`notification_preferences` and `notification_digest_runs` never existed on the production hub. Their migrations failed with *SQLSTATE 1071: Specified key was too long; max key length is 3072 bytes* and the whole notifications feature has been unusable there since it shipped, through four releases.
+
+`notif_pref_unique` spanned `brand_id, user_id, contact_uuid, type, channel`. Under utf8mb4 every character costs four bytes, so each `varchar(255)` costs 1020 and the index came to 3212 — 140 bytes past what InnoDB will build.
+
+**Why a green suite did not find it.** The suite runs on in-memory SQLite, and every mechanism in that paragraph is a MySQL mechanism. SQLite has no index length limit, stores no fixed column widths (it accepts `varchar(255)` and ignores the 255), and has no per-character byte cost to multiply. The migration was not passing the test — there was no test for it to pass, because the constraint it violates does not exist in the engine the tests use. The same blind spot covers every future index in this addon, so it is closed rather than worked around: see the coverage note below.
+
+**Why the index was replaced rather than shortened.** A prefix index (`type(64)`) would have fit and would have been the smaller diff. It would also have declared two types that share their first 64 characters to be the same preference — swapping a migration that fails loudly for data that is quietly wrong. Narrowing the columns themselves is defensible for `type` and `channel`, which come from a registry this addon owns, but not for `user_id`: that is the host application's identifier, ours to store and not ours to cap.
+
+Both tables now carry a `uniqueness_key` — a SHA-256 of the natural tuple, maintained by the model on every save — and the unique is `(brand_id, uniqueness_key)`, 264 bytes. Every byte of every column is still covered, no value is truncated, and `brand_id` stays a column of the index rather than an ingredient of the hash, so the tenant boundary remains legible in the schema and usable as a range. Tenant separation is unchanged in every other respect.
+
+### Fixed — neither unique constrained contact recipients at all
+
+Found while replacing the index, and the more serious of the two. A SQL unique does not constrain NULL, on any engine, and `user_id` is NULL for every contact recipient. So `notif_pref_unique` permitted a contact to accumulate any number of contradictory preferences for one type and channel, with the resolver reading whichever came back first — and `notif_digest_run_unique` permitted the same digest window to be recorded as sent twice, which is exactly the repetition that table was introduced to end.
+
+Hashing turns the absence of a value into a definite one, so both constraints now cover the rows they were written for. `DigestBuilder::markSent()` looks a run up by the same key the index is built on, so the check and the constraint can no longer disagree.
+
+### Changed — the digest-runs unique was one column from the same wall
+
+It measured 2196 bytes of 3072 and would have been accepted by MySQL; it appeared in the failure report only because the run died at the preferences table before reaching it. Being under the limit by accident is what made the original design fragile, so the new test asserts headroom rather than mere survival: no index in this addon may use more than half the limit. The widest is now 1036 bytes.
+
+### Migration
+
+- **MySQL hosts** need nothing beyond `php artisan migrate`. Their original run was never recorded, so the corrected create-migrations execute normally and build the tables for the first time.
+- **SQLite and Postgres hosts** ran the original migrations successfully, so editing those files reaches nothing there. `2026_07_28_000001_rebuild_notification_uniqueness_keys` adds the column, backfills it from existing rows and swaps the index. It is idempotent, and a no-op on a fresh install.
+- That migration deletes duplicate rows the old index could not prevent, keeping the most recent per recipient — for a preference the last opinion the person expressed, for a digest run the one whose `sent_at` is closest to now. Deletions are reported in the log. There will be none unless contacts were in use.
+
+### Notes
+
+- **The suite now covers this class of defect without needing MySQL.** `IndexKeyLengthTest` compiles the addon's own migration files through Laravel's MySQL grammar in pretend mode — no server, no connection, nothing to install in CI — and measures every index the way InnoDB would. It reads the real migration files, so it cannot drift from them. Reverted against the 1.0.3 index it reports 3212 bytes and fails, which is the check that was missing.
+- **The whole suite can now be run against a real MySQL server**: `vendor/bin/pest -c phpunit.mysql.xml`. Same tests, `DB_DRIVER=mysql`. Verified green against MySQL 8.4 as well as SQLite; the schema and upgrade tests were written to pass on both.
+- Suite: **76 passed (217 assertions)** on SQLite, baseline 61.
+
 ## 1.0.3 — 2026-07-27
 
 ### Fixed — the mail channel never sent a single notification

@@ -85,12 +85,18 @@ class DigestBuilder
     {
         $window = $collected['window'];
 
+        // Matched on the same key the unique index is built on, so the check
+        // and the constraint can never disagree — and so a contact recipient,
+        // whose user_id is NULL, is compared by value rather than by a NULL
+        // that equals nothing.
         $run = NotificationDigestRun::query()
             ->where('brand_id', BrandContext::hasCurrent() ? BrandContext::currentId() : BrandContext::defaultId())
-            ->where('user_id', $recipient->userId)
-            ->where('contact_uuid', $recipient->contactUuid)
-            ->where('frequency', $frequency)
-            ->where('window_start', $window['start'])
+            ->where('uniqueness_key', NotificationDigestRun::uniquenessKeyFor(
+                $recipient->userId,
+                $recipient->contactUuid,
+                $frequency,
+                $window['start'],
+            ))
             ->first();
 
         if ($run !== null) {
