@@ -126,6 +126,28 @@ Two things this does that the system it replaces did not:
 Scheduling is left to the host — register the command in your own scheduler so
 the send window matches your audience.
 
+## Checking the uniqueness constraints
+
+```bash
+php artisan notifications:uniqueness-integrity [--repair]
+```
+
+`php artisan migrate` reporting success means the migrations ran. It does not
+mean the constraints they were supposed to leave behind are in place, and it
+says nothing at all about the rows. This reads the indexes that are on
+`notification_preferences` and `notification_digest_runs` right now, and the
+rows that are in them, and says plainly whether one recipient still means one
+row per key. It changes nothing.
+
+You will be pointed at it by `migrate` itself. Installs created before 1.0.4
+could hold duplicate rows for contact recipients, because the unique of the day
+led with `user_id` and no engine constrains a NULL. Where those rows exist the
+migration stops and names them rather than choosing between them: which of two
+preferences is the one a person currently holds is not a decision a schema
+change gets to make. Delete the rows that are not the ones to keep, then run
+`migrate` again. `--repair` rebuilds the index alone once nothing is in the way,
+and refuses while anything is.
+
 ### Digest sources
 
 Other addons contribute things nobody was notified about:

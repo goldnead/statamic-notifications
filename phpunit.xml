@@ -12,6 +12,18 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <!--
+            The migration path itself, against tables that already hold rows.
+            Every other suite meets a database RefreshDatabase and `migrate`
+            have already brought to head; these install an earlier release, put
+            data in and migrate forward. Present in both configurations on
+            purpose — 1.0.3 cannot be installed on MySQL at all, and the
+            follow-up migration therefore meets a different starting schema on
+            each engine, so one run cannot speak for the other.
+        -->
+        <testsuite name="Migrations">
+            <directory>tests/Migrations</directory>
+        </testsuite>
         <testsuite name="Integration">
             <directory>tests/Integration</directory>
         </testsuite>

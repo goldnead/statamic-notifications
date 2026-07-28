@@ -5,6 +5,7 @@ namespace Goldnead\Notifications;
 use Goldnead\Notifications\Channels\ChannelRegistry;
 use Goldnead\Notifications\Channels\LaravelChannelAdapter;
 use Goldnead\Notifications\Console\SendDigestsCommand;
+use Goldnead\Notifications\Console\UniquenessIntegrityCommand;
 use Goldnead\Notifications\Contracts\RecipientDirectory;
 use Goldnead\Notifications\Digest\DigestBuilder;
 use Goldnead\Notifications\Digest\PendingItemRecipientDirectory;
@@ -26,6 +27,7 @@ class ServiceProvider extends AddonServiceProvider
 
     protected $commands = [
         SendDigestsCommand::class,
+        UniquenessIntegrityCommand::class,
     ];
 
     public function register(): void

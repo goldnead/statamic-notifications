@@ -1,5 +1,57 @@
 # Changelog
 
+## 1.0.7 — 2026-07-28
+
+### Fixed — a migration was deleting rows, and a log line is not consent
+
+`2026_07_28_000001_rebuild_notification_uniqueness_keys`, shipped in 1.0.4, resolved duplicate preference and digest-run rows by keeping the highest id of each group and deleting the rest. It reported that with a single `info()` line and carried on. That line went to the log, during `php artisan migrate`, after the rows were already gone.
+
+**Affected: installs on SQLite or Postgres that were created under 1.0.3 or earlier, had contact recipients, and updated to 1.0.4, 1.0.5 or 1.0.6.** Nothing else. Two exclusions worth stating rather than leaving to be worked out:
+
+- **No MySQL host can be affected.** The pre-1.0.4 `notification_preferences` table carries a five-column unique over four `varchar(255)` columns — 3212 bytes against InnoDB's 3072 — so on MySQL it could never be created. That is the failure 1.0.4 was released to fix. A MySQL host has never held a pre-1.0.4 preference row, so it has never had one to lose.
+- **No install without contact recipients can be affected.** The duplicates in question are rows the old index permitted, and it permitted them only where `user_id` is NULL, which is the case for contacts and for nothing else. An install whose recipients are all users had nothing for the deletion to find.
+
+**How to tell whether it happened to you.** The deletion left exactly one trace, and it is in the application log rather than in the database:
+
+```
+grep 'Removed .* duplicate row' storage/logs/laravel*.log
+```
+
+A line reading `[notifications] Removed 3 duplicate row(s) from notification_preferences that the previous unique index could not prevent.` is that migration, and the number is how many rows it removed. If your logs have rotated past the update, there is no other fingerprint: the rows are gone, nothing recorded what was in them, and the migration is recorded as having run successfully. **This is not recoverable.** What was lost is bounded and worth knowing: for `notification_preferences`, superseded opinions a contact had expressed about a type and channel, where the row that survived is the most recently created one; for `notification_digest_runs`, older records of a digest window already recorded as sent, where the surviving row still holds the send. Neither loses a current preference or causes an e-mail to be resent. Restore from a backup taken before the update if the historical rows matter to you.
+
+**What changed.** The migration now stops. It reports every group that is in the way by its natural values — `brand_id`, `user_id`, `contact_uuid`, `type`, `channel` for preferences, and the frequency and window for digest runs — with the ids of the rows involved, and it changes nothing. Which of two preference rows is the opinion a person currently holds, and which digest run is the one the install will stand behind when somebody asks whether an e-mail went out, are questions about that install's history. A migration cannot answer them and should not try.
+
+`php artisan notifications:uniqueness-integrity` prints the same groups in full, with ids and timestamps, and reads the indexes that are on the two tables right now rather than asking whether a migration ran — those are different statements, and treating them as one is how an install ends up believing a guarantee it does not have. `--repair` rebuilds the index alone once nothing is in the way, and refuses while anything is.
+
+**And the abort no longer costs anything.** The duplicate check runs *before* the old unique comes off, so an install that stops here still has the constraint it started with. That is the shape that took `statamic-marketing` down through three releases: the statement that failed came after the statement that dropped, no engine rolls DDL back, and the install was left with no constraint at all and no record that anything had happened.
+
+### Fixed — the migration could not pick itself back up
+
+The 1.0.6 version returned as soon as it saw a `uniqueness_key` column. An interrupted run has already added that column, so on the retry it walked straight past the index it had never built and reported success. Every step now asks the schema what is actually there: the column is added only where missing, the backfill touches only rows with no key, and the index is built unless it is already in place over the right columns. Re-running it on a half-migrated install finishes the update.
+
+### Changed — the migration no longer calls into two Eloquent models
+
+It imported `NotificationPreference` and `NotificationDigestRun` for their static `uniquenessKeyFor()`, and in the digest case *instantiated* the model to normalise the window, which boots the `HasBrand` global scope and the saving hook inside a schema step. That looks like reuse and is a dependency in the wrong direction. A migration is a statement about one moment in a database's history and has to keep making it unchanged for as long as any install might still be behind it; a model is the current shape of the code and is meant to move. Rename either class and `migrate` stops at "Class not found" on every install that has not run this file yet, with nothing in the message pointing at the migration directory. Change the encoding — which `Support\UniquenessKey`'s own class doc contemplates, and which needs its own recompute migration when it happens — and this file silently starts writing the new format onto installs the recompute migration will never be told about, because as far as their migrations table is concerned they are up to date.
+
+The encoding is now frozen into the migration at the shape it published. The cost of freezing is drift, so `tests/Unit/FrozenUniquenessKeyTest.php` requires the frozen copy to still agree with both models and with `UniquenessKey` itself, over nulls, empty strings and values containing the encoding's own separators. If they ever diverge, that is the moment somebody has to write the recompute migration, not the moment two formats quietly start coexisting.
+
+### Added — the migrations are finally tested against a database with data in it
+
+This is the actual finding. Not the deletion — the fact that no migration path in this addon had ever been run over anything but tables the test had created itself moments earlier, so the only code path that deletes anything had nowhere to be exercised. Three releases went out green without ever executing it once.
+
+`tests/Migrations/` is a suite of its own, on a connection of its own, and it is in both `phpunit.xml` and `phpunit.mysql.xml`, because the two engines start from different schemas here and one run cannot speak for the other.
+
+It does not name the migration that was wrong. It walks `database/migrations/` and runs the files one at a time, seeding every notifications table that exists before each one — so every migration in the addon meets rows written by an older schema, including migrations added long after this was written. `tests/Fixtures/released-migrations/` holds the migration sets as published in 1.0.3 and 1.0.6, and the suite installs each of them, puts data in and upgrades forward: notification items, preferences and digest runs across users and contacts, with the contact rows carrying the NULL `user_id` that the old index never constrained.
+
+**The load-bearing case is the one that counts rows, not the one that checks the abort.** `it does not delete a row it was never told it could delete` installs 1.0.3, seeds it, adds the second contact preference the old schema permitted, runs the current migrations, and then requires the table to hold the same ids with the same values it held before — column by column, not merely the same count. Beside it, `it shows what the 1.0.6 migration did with the same rows` runs the identical setup through the 1.0.6 migration set exactly as published and measures the result: eight rows in, seven rows out. The claim in the section above is not asserted, it is demonstrated.
+
+Every check is behavioural. "The migration ran" and "the constraint is there" are not the same statement. So nothing here asserts that `migrate` exited zero, or that an index of a given name exists. It writes the row the constraint is supposed to refuse and requires the database to refuse it.
+
+### Notes
+
+- Suite: **107 passed (309 assertions)** on SQLite, baseline 81. Green against MySQL 8.0 as well, through `phpunit.mysql.xml`, including the new `Migrations` suite.
+- The five new checks were each verified to fail against the 1.0.6 migration before the fix went in, which is the only thing that makes them worth having.
+
 ## 1.0.6 — 2026-07-28
 
 ### Changed — the route parameter guard checks the rule, not a snapshot of the siblings
