@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.5 — 2026-07-28
+
+### Added — the route parameter name is checked against the rest of the family
+
+No defect in this addon, and no route changed. What is added is the check that would have caught one, and a pin on the property that made the check possible.
+
+`Route::bind()` is registered on the router, not on a package. A binding one addon registers for `{rule}` or `{template}` applies to every route with that parameter name in every other addon installed beside it. Nothing warns, nothing logs, and the losing route does not fail loudly: it resolves its id against a repository that has never heard of it and returns 404. `goldnead/statamic-leadhub` 1.8.0 shipped `/scoring/{rule}` while `goldnead/statamic-webhook-manager` binds `rule` to its own rule repository, and on the production hub, which has both, editing or deleting a scoring rule did nothing at all and said nothing at all, through a release.
+
+**Why a green suite did not find it.** Two things have to hold before that failure is observable in an addon's own bed: the sibling addon has to be installed there, which it never is, and the bed has to mount the CP routes with `SubstituteBindings`, the middleware that applies a binding at all. LeadHub's bed had neither. This one mounts its CP routes through the `web` group, which already carries the middleware, so the second half was true here by inheritance rather than by decision — and nothing asserted it, so narrowing that group would have taken it away silently. It is now asserted: swap `middleware(['web'])` for `middleware([])` in `tests/TestCase.php` and the first case in the new `tests/Feature/RouteParameterCollisionTest.php` fails while the other 78 tests stay green.
+
+The rest of that file reads this addon's parameter names out of `routes/cp.php` — string literals only, so example URLs in comments are not mistaken for routes — and checks them two ways: exactly, against a hand-maintained list of names that packages installed beside this one bind application-wide (`automation` from statamic-automations, `webhook` / `endpoint` / `rule` / `template` from statamic-webhook-manager, ten CMS entity names from statamic/cms), and then softly, by requiring every generic name to be recorded with a reason so that a *new* one has to be a decision.
+
+**What this cannot do.** A collision only exists once two packages are installed together, and no package can see its siblings from inside its own suite. The reserved list is a snapshot maintained by hand and will not catch an addon that starts binding a name nobody binds today — and `{id}`, this addon's only parameter, is exactly such a name. It is recorded as accepted rather than renamed: nothing binds it, the URL would be identical either way, and the honest statement is that the hub is where that answer is measurable. What the test buys is that the next `{rule}` fails in the addon that introduces it, before it reaches a hub.
+
 ## 1.0.4 — 2026-07-28
 
 ### Fixed — two tables could not be created on MySQL at all
