@@ -1,5 +1,66 @@
 # Changelog
 
+## 1.1.0 — 2026-07-30
+
+### Added — this addon stops writing to mailboxes another addon already gave up on
+
+Both paths that reach a mailbox — the immediate `MailChannel` and the weekly digest — now consult
+`goldnead/statamic-suppression` before sending. New dependency at `^1.0`.
+
+This is not a feature this addon asked for. It is the reason the suppression layer was built as its
+own package instead of inside `statamic-marketing`, and if it were absent that separation would have
+bought nothing.
+
+**A hard bounce is a property of the mailbox, not of the relationship.** That sentence is what makes
+a bounce global across brands rather than scoped to one, and it applies just as directly one level
+up: it says nothing about which addon happens to be sending. An address marketing had already given
+up on kept receiving assignment notifications and a weekly digest from this addon — the same
+application, the same sending reputation, the same dead mailbox. A block that depends on which addon
+is holding the pen is not a block.
+
+### Added — the one thing a channel may decide for itself
+
+`Contracts\Channel` says, and has always said, that channels never decide *whether* to deliver: the
+preference resolver has done that before they are called. The gate is a deliberate exception to that
+sentence, and the docblock now says so rather than leaving the contradiction to be discovered.
+
+The reason it cannot go where it "belongs": `PreferenceResolver::allows()` returns `true`
+unconditionally for a `required` type, before it reads anything stored. That is correct for
+preferences — an outage notice should not be silenceable — and fatal for suppression. A legal block
+that a notification type can declare itself exempt from is not a block. So the check sits in the
+channel, immediately in front of the only line that reaches a mailbox.
+
+The persisted row is still written either way. This decides how somebody is reached, never whether
+the thing happened.
+
+### Added — the digest gate sits before `markSent()`, and that placement is the feature
+
+`markSent()` stamps `digested_at` on every collected item and writes the run row for the window. A
+suppression check *after* it would burn the recipient's items: marked as digested, never delivered,
+and never resurfaced if the suppression is later released. The check therefore runs before it, and
+the test asserts the placement rather than the presence — it suppresses a recipient, runs the digest,
+requires zero items to be stamped, then releases the suppression and requires the next run to deliver
+them.
+
+### Added — both paths fail closed
+
+A gate that cannot answer withholds the mail. "The suppression list could not be read" is not
+permission to write to a mailbox that may have complained, and a notification is never urgent enough
+to be worth that trade.
+
+`MailChannel` logs and returns rather than throwing, because
+`NotificationManager::dispatchChannels()` swallows channel exceptions through `report()` — throwing
+there would stop the send and leave nothing anybody reads. The digest reports and skips, leaving the
+items pending for the run after the database recovers.
+
+### Notes
+
+- Suite: **114 passed (325 assertions)**, baseline 107. Seven new cases, all of them about an address
+  that must not be written to.
+- `MailChannel::__construct()` takes the gate as a second argument. `ChannelRegistry::resolve()` goes
+  through `app()`, so nothing in the service provider or in a host's config needed changing.
+- `notifications:send-digests` now reports a suppressed count alongside empty and already-sent.
+
 ## 1.0.7 — 2026-07-28
 
 ### Fixed — a migration was deleting rows, and a log line is not consent
