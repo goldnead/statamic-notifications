@@ -9,6 +9,8 @@ use Goldnead\Notifications\Mail\DigestMail;
 use Goldnead\Notifications\Preferences\PreferenceResolver;
 use Goldnead\BrandContext\Facades\BrandContext;
 use Goldnead\BrandContext\Models\Brand;
+use Goldnead\Suppression\Contracts\Gate as SuppressionGate;
+use Goldnead\Suppression\Exceptions\SuppressionCheckFailed;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
@@ -84,6 +86,7 @@ class SendDigestsCommand extends Command
         $sent = 0;
         $skippedEmpty = 0;
         $skippedAlreadySent = 0;
+        $skippedSuppressed = 0;
 
         foreach ($directory->digestRecipients($frequency) as $recipient) {
             if (! $recipient instanceof Identity || ! $recipient->isIdentified()) {
@@ -92,6 +95,20 @@ class SendDigestsCommand extends Command
 
             // A recipient who wants weekly must not be caught by the daily run.
             if ($preferences->digestFrequency($recipient) !== $frequency) {
+                continue;
+            }
+
+            // Gated *before* markSent(), which is the only placement that works.
+            //
+            // markSent() stamps `digested_at` on every collected item and writes
+            // the run row for the window. Checking after it would mean a
+            // suppressed recipient's items are burned — marked as digested,
+            // never delivered, and never resurfaced if the suppression is later
+            // released. Skipping here leaves them pending, so the next run after
+            // a release picks them up.
+            if ($this->isSuppressed($recipient)) {
+                $skippedSuppressed++;
+
                 continue;
             }
 
@@ -128,13 +145,39 @@ class SendDigestsCommand extends Command
         }
 
         $this->components->info(sprintf(
-            '%s %d digest(s). Skipped: %d empty, %d already sent for this window.',
+            '%s %d digest(s). Skipped: %d empty, %d already sent for this window, %d suppressed.',
             $dryRun ? 'Would send' : 'Sent',
             $sent,
             $skippedEmpty,
             $skippedAlreadySent,
+            $skippedSuppressed,
         ));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Is this recipient's address blocked from every send path?
+     *
+     * Fails closed. A digest is not urgent, and "the suppression list could not
+     * be read" is not permission to write to a mailbox that may have complained.
+     * The items stay pending either way, so nothing is lost by waiting for the
+     * next run.
+     */
+    protected function isSuppressed(Identity $recipient): bool
+    {
+        $address = $recipient->email;
+
+        if ($address === null || $address === '') {
+            return false;
+        }
+
+        try {
+            return app(SuppressionGate::class)->isSuppressed($address);
+        } catch (SuppressionCheckFailed $e) {
+            report($e);
+
+            return true;
+        }
     }
 }

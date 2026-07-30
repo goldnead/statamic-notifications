@@ -39,6 +39,7 @@ abstract class TestCase extends Orchestra
             StatamicServiceProvider::class,
             \Goldnead\BrandContext\ServiceProvider::class,
             \Goldnead\IdentityContracts\ServiceProvider::class,
+            \Goldnead\Suppression\ServiceProvider::class,
             ServiceProvider::class,
         ];
     }
