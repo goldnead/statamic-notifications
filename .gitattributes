@@ -1,8 +1,11 @@
-# Without this, every site that installs the addon downloads its tests, CI config
-# and dev tooling. Runway, Mailchimp and Advanced SEO all export-ignore.
+# Without this, every site that installs the addon downloads its tests, CI config,
+# listing artwork and dev tooling. Runway, Mailchimp and Advanced SEO all
+# export-ignore.
 
 /.github                export-ignore
 /tests                  export-ignore
+/art                    export-ignore
+/screenshots            export-ignore
 /.gitattributes         export-ignore
 /.gitignore             export-ignore
 /.editorconfig          export-ignore
