@@ -1,0 +1,11 @@
+includes:
+    - phpstan-baseline.neon
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    # Level 5 with a generated baseline: a ratchet for new code, not a rewrite
+    # of what already ships. Raise the level or shrink the baseline, never both
+    # in the same commit.
+    level: 5
+    paths:
+        - src

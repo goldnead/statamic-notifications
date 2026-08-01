@@ -42,13 +42,15 @@
         "goldnead/statamic-brand-context": "^1.0",
         "goldnead/statamic-identity-contracts": "^1.0",
         "goldnead/statamic-suppression": "^1.0",
-        "laravel/framework": "^11.0|^12.0|^13.0",
-        "php": "^8.2",
+        "laravel/framework": "^12.0|^13.0",
+        "php": "^8.3",
         "statamic/cms": "^6.0"
     },
     "require-dev": {
         "goldnead/statamic-leadhub": "^1.4",
-        "orchestra/testbench": "^8.0|^9.0|^10.0|^11.0",
+        "larastan/larastan": "^3.10",
+        "laravel/pint": "^1.30",
+        "orchestra/testbench": "^10.0|^11.0",
         "pestphp/pest": "^2.0|^3.0|^4.0",
         "pestphp/pest-plugin-laravel": "^2.0|^3.0|^4.0"
     },
@@ -67,8 +69,12 @@
     },
     "extra": {
         "statamic": {
+            "slug": "notifications",
             "name": "Notifications",
-            "description": "Persisted, brand-scoped notifications with per-type preferences and digests."
+            "url": "https://github.com/goldnead/statamic-notifications",
+            "description": "Persisted, brand-scoped notifications with per-type preferences and digests.",
+            "developer": "Adrian Goldner",
+            "developer-url": "https://gldnr.studio"
         },
         "laravel": {
             "providers": [
@@ -82,6 +88,12 @@
     "scripts": {
         "test": [
             "@php vendor/bin/pest"
+        ],
+        "lint": [
+            "@php vendor/bin/pint --test"
+        ],
+        "analyse": [
+            "@php vendor/bin/phpstan analyse"
         ]
     },
     "config": {

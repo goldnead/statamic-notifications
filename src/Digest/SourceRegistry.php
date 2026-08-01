@@ -3,8 +3,8 @@
 namespace Goldnead\Notifications\Digest;
 
 use Closure;
-use Goldnead\Notifications\Contracts\DigestSource;
 use Goldnead\IdentityContracts\Identity;
+use Goldnead\Notifications\Contracts\DigestSource;
 use Illuminate\Support\Carbon;
 
 /**

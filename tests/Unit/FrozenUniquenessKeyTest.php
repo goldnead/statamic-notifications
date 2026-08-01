@@ -3,6 +3,7 @@
 use Goldnead\Notifications\Models\NotificationDigestRun;
 use Goldnead\Notifications\Models\NotificationPreference;
 use Goldnead\Notifications\Support\UniquenessKey;
+use Illuminate\Support\Carbon;
 
 /**
  * The migration that backfills `uniqueness_key` carries its own copy of the
@@ -95,7 +96,7 @@ it('normalises a window the way the model does, whatever it is handed', function
     // different representation of the same instant all have to reduce to one
     // key — otherwise a re-run recomputes a different hash for the same row.
     foreach ([
-        \Illuminate\Support\Carbon::parse($expected),
+        Carbon::parse($expected),
         $expected,
         '2026-07-28T09:30:00',
     ] as $input) {

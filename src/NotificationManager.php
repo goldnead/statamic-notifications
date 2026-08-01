@@ -12,6 +12,7 @@ use Goldnead\Notifications\Models\NotificationItem;
 use Goldnead\Notifications\Preferences\PreferenceResolver;
 use Goldnead\Notifications\Types\NotificationType;
 use Goldnead\Notifications\Types\TypeRegistry;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
@@ -218,10 +219,10 @@ class NotificationManager
             'actor_type' => $actor?->type,
             'actor_id' => $actor?->id,
             'actor_name' => $actor?->name,
-            'subject_type' => $attributes['subject_type'] ?? ($subject instanceof \Illuminate\Database\Eloquent\Model ? $subject::class : null),
+            'subject_type' => $attributes['subject_type'] ?? ($subject instanceof Model ? $subject::class : null),
             'subject_id' => isset($attributes['subject_id'])
                 ? (string) $attributes['subject_id']
-                : ($subject instanceof \Illuminate\Database\Eloquent\Model ? (string) $subject->getKey() : null),
+                : ($subject instanceof Model ? (string) $subject->getKey() : null),
             'message' => $attributes['message'] ?? null,
             'link' => $attributes['link'] ?? null,
             'data' => $attributes['data'] ?? null,

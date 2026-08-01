@@ -2,6 +2,7 @@
 
 namespace Goldnead\Notifications;
 
+use Goldnead\Leadhub\Models\Contact;
 use Goldnead\Notifications\Channels\ChannelRegistry;
 use Goldnead\Notifications\Channels\LaravelChannelAdapter;
 use Goldnead\Notifications\Console\SendDigestsCommand;
@@ -108,7 +109,7 @@ class ServiceProvider extends AddonServiceProvider
      */
     protected function registerBundledSources(): self
     {
-        if (config('notifications.sources.leadhub', true) && class_exists(\Goldnead\Leadhub\Models\Contact::class)) {
+        if (config('notifications.sources.leadhub', true) && class_exists(Contact::class)) {
             app('notifications')->registerSource('leadhub', LeadHubSource::class);
             LeadHubSource::registerTypes(app('notifications'));
         }

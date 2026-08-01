@@ -2,6 +2,9 @@
 
 namespace Goldnead\Notifications\Tests;
 
+use Illuminate\Database\Connection;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\Schema\Builder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -193,12 +196,12 @@ abstract class MigrationPathTestCase extends TestCase
         return __DIR__.'/../database/migrations';
     }
 
-    protected function isolated(): \Illuminate\Database\Connection
+    protected function isolated(): Connection
     {
         return DB::connection(self::CONNECTION);
     }
 
-    protected function isolatedSchema(): \Illuminate\Database\Schema\Builder
+    protected function isolatedSchema(): Builder
     {
         return Schema::connection(self::CONNECTION);
     }
@@ -248,7 +251,7 @@ abstract class MigrationPathTestCase extends TestCase
 
         try {
             $id = $this->isolated()->table($table)->insertGetId($row);
-        } catch (\Illuminate\Database\QueryException) {
+        } catch (QueryException) {
             return false;
         }
 

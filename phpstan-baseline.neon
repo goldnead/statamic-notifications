@@ -1,0 +1,175 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationItem\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Channels/MailChannel.php
+
+		-
+			message: '#^Instanceof between Goldnead\\IdentityContracts\\Identity and Goldnead\\IdentityContracts\\Identity will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: src/Console/SendDigestsCommand.php
+
+		-
+			message: '#^Offset ''unique'' on array\{name\: string, columns\: array\{''brand_id'', ''uniqueness_key''\}, type\: string, unique\: bool, primary\: bool\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/Console/UniquenessIntegrityCommand.php
+
+		-
+			message: '#^Offset ''unique'' on array\{name\: string, columns\: list\<string\>, type\: string, unique\: bool, primary\: bool\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/Console/UniquenessIntegrityCommand.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationItem\:\:\$contact_uuid\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Digest/PendingItemRecipientDirectory.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationItem\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Digest/PendingItemRecipientDirectory.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationItem\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Digest/PendingItemRecipientDirectory.php
+
+		-
+			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Http/Controllers/Cp/NotificationController.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationDigestRun\:\:\$contact_uuid\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationDigestRun.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationDigestRun\:\:\$frequency\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationDigestRun.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationDigestRun\:\:\$uniqueness_key\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationDigestRun.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationDigestRun\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationDigestRun.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationDigestRun\:\:\$window_start\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationDigestRun.php
+
+		-
+			message: '#^Unsafe usage of new static\(\)\.$#'
+			identifier: new.static
+			count: 1
+			path: src/Models/NotificationDigestRun.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationItem\:\:\$actor_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationItem.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationItem\:\:\$actor_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationItem.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationItem\:\:\$actor_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationItem.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationItem\:\:\$contact_uuid\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationItem.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationItem\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationItem.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationItem\:\:\$recipient_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationItem.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationItem\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationItem.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationPreference\:\:\$channel\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationPreference.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationPreference\:\:\$contact_uuid\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationPreference.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationPreference\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationPreference.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationPreference\:\:\$uniqueness_key\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationPreference.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationPreference\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Models/NotificationPreference.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationPreference\:\:\$enabled\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Preferences/PreferenceResolver.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationItem\:\:\$link\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Types/NotificationType.php
+
+		-
+			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationItem\:\:\$message\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Types/NotificationType.php

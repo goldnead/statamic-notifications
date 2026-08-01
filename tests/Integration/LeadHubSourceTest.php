@@ -2,9 +2,11 @@
 
 use Goldnead\BrandContext\Facades\BrandContext;
 use Goldnead\IdentityContracts\Identity;
+use Goldnead\Notifications\Contracts\DigestSource;
 use Goldnead\Notifications\Digest\DigestBuilder;
 use Goldnead\Notifications\Facades\Notifications;
 use Goldnead\Notifications\Sources\LeadHubSource;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -89,9 +91,9 @@ it('never counts another brand\'s follow-ups into a digest', function (): void {
 });
 
 it('survives a source that throws', function (): void {
-    Notifications::registerSource('broken', fn () => new class implements \Goldnead\Notifications\Contracts\DigestSource
+    Notifications::registerSource('broken', fn () => new class implements DigestSource
     {
-        public function collect(Identity $recipient, \Illuminate\Support\Carbon $s, \Illuminate\Support\Carbon $e): array
+        public function collect(Identity $recipient, Carbon $s, Carbon $e): array
         {
             throw new RuntimeException('boom');
         }

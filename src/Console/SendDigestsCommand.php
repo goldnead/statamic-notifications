@@ -2,13 +2,13 @@
 
 namespace Goldnead\Notifications\Console;
 
+use Goldnead\BrandContext\Facades\BrandContext;
+use Goldnead\BrandContext\Models\Brand;
 use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Contracts\RecipientDirectory;
 use Goldnead\Notifications\Digest\DigestBuilder;
 use Goldnead\Notifications\Mail\DigestMail;
 use Goldnead\Notifications\Preferences\PreferenceResolver;
-use Goldnead\BrandContext\Facades\BrandContext;
-use Goldnead\BrandContext\Models\Brand;
 use Goldnead\Suppression\Contracts\Gate as SuppressionGate;
 use Goldnead\Suppression\Exceptions\SuppressionCheckFailed;
 use Illuminate\Console\Command;

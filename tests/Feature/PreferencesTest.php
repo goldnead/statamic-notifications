@@ -1,7 +1,10 @@
 <?php
 
 use Goldnead\IdentityContracts\Identity;
+use Goldnead\Notifications\Digest\DigestBuilder;
 use Goldnead\Notifications\Facades\Notifications;
+use Goldnead\Notifications\Mail\DigestMail;
+use Goldnead\Notifications\Mail\NotificationMail;
 use Goldnead\Notifications\Models\NotificationItem;
 use Goldnead\Notifications\Preferences\PreferenceResolver;
 use Illuminate\Support\Facades\Mail;
@@ -67,7 +70,7 @@ it('sends mail when the channel is allowed', function (): void {
 
     Notifications::notify(Identity::user(1, 'a@example.com'), 'community.mention', ['message' => 'hi']);
 
-    Mail::assertSent(\Goldnead\Notifications\Mail\NotificationMail::class);
+    Mail::assertSent(NotificationMail::class);
 });
 
 it('reports a digest frequency, defaulting to the configured one', function (): void {
@@ -109,7 +112,7 @@ it('actually renders the notification mail', function (): void {
     ]);
 
     $rendered = Notifications::render($item);
-    $html = (new \Goldnead\Notifications\Mail\NotificationMail($item, $rendered))->render();
+    $html = (new NotificationMail($item, $rendered))->render();
 
     expect($html)->toContain('Bea hat dich erwähnt.')
         ->and($html)->toContain('/account/community/posts/9');
@@ -121,8 +124,8 @@ it('renders the digest mail', function (): void {
     $recipient = Identity::user(1, 'a@example.com');
     Notifications::notify($recipient, 'community.reply', ['message' => 'Neue Antwort']);
 
-    $collected = app(\Goldnead\Notifications\Digest\DigestBuilder::class)->collect($recipient, 'weekly');
-    $html = (new \Goldnead\Notifications\Mail\DigestMail($recipient, $collected, 'weekly'))->render();
+    $collected = app(DigestBuilder::class)->collect($recipient, 'weekly');
+    $html = (new DigestMail($recipient, $collected, 'weekly'))->render();
 
     expect($html)->toContain('Neue Antwort');
 });
