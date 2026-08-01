@@ -1,5 +1,63 @@
 # Changelog
 
+## Unreleased
+
+### Fixed — the Control Panel was below the standard the rest of the package holds
+
+`resources/views/cp/_styles.blade.php` is gone. Its header comment justified 112 lines of substitute
+CSS with the claim that `mb-4`, `flex` and `gap-3` do not exist at runtime. All three ship in
+`statamic/cms` v6.26.0's CP bundle. The class the views actually relied on is `.card`, and *that* one
+has been hollowed out to nothing but `border-radius` in v6 — which is why every panel rendered as a
+transparent box. A correct observation ("the screen looks wrong") led to a wrong diagnosis and then
+to a hand-built HTML table propped up by unowned CSS.
+
+Both screens are now core components. The listing is Statamic's own `<ui-listing>`, so it brings
+search, sortable columns, saved views, column customisation, pagination and a native filter stack —
+type, read state and recipient — instead of three text inputs and a submit button. The detail screen
+is `<ui-header>`, `<ui-panel>`, `<ui-card>` and `<ui-table>`. No Vite build was introduced: core's
+documented non-Inertia path compiles the yielded Blade into a Vue template, where every `<ui-*>`
+component resolves.
+
+One hazard comes with that path and is worth stating, because nothing looks wrong when it bites: the
+page's Blade *is* a Vue template, so producer-supplied text containing a mustache would be a compile
+error and the screen would simply not render. Every database value now goes into a static attribute
+rather than element text, and a test holds that in place.
+
+Also: the nav icon is `->icon('bell')` instead of 300 characters of inline SVG, `message`, `link`,
+`actor` and `dedupe_key` are translated like every neighbouring label, and the CP test count went
+from 5 to 18 — permissions per route, filters alone and combined, search, a sort whitelist that
+rejects injected input, pagination, column visibility, and brand isolation for the listing as well
+as the detail page.
+
+### Fixed — config keys the code reads but the config file never shipped
+
+`notifications.cp.enabled` and `notifications.sources.leadhub` were read by the service provider and
+absent from `config/notifications.php`, so publishing the config gave you no way to switch either
+off. Both are in the file now, with `NOTIFICATIONS_CP_ENABLED` and `NOTIFICATIONS_SOURCE_LEADHUB`.
+
+### Changed — version constraints that were never installable
+
+`laravel/framework` narrows from `^11.0|^12.0|^13.0` to `^12.0|^13.0` and `php` from `^8.2` to
+`^8.3`. Neither is a reduction in what works: `statamic/cms ^6.0` requires `laravel/framework
+^12.40 || ^13.0`, every Laravel 11 release up to v11.55.0 is covered by security advisories Composer
+refuses to install, and Laravel 12.40+ requires PHP 8.3. `orchestra/testbench` follows to `^10|^11`.
+
+### Changed — CI now runs what the README says matters
+
+`phpunit.mysql.xml` shipped in every release and no workflow had ever executed it, while the README
+called that run the thing standing between us and a repeat of v1.0.4's index defect. It is a job
+now. The matrix also crosses PHP 8.3/8.4 with Laravel 12/13 and `prefer-lowest`/`prefer-stable`
+instead of testing PHP alone, and Pint, PHPStan (level 5, baselined) and addon-lint are gates.
+
+### Changed — the test bed uses Statamic's own harness
+
+`tests/TestCase.php` extends `Statamic\Testing\AddonTestCase`. The hand-rolled Testbench setup had
+no addon manifest, so `getAddon()` returned null and the provider's entire boot chain never ran;
+`bootAddon()` and the CP routes were invoked by hand, and the CP tests therefore ran with plain
+`web` middleware rather than the real CP stack. They now go through it, which is what surfaced that
+a denied operator sees Statamic's redirect rather than a 403.
+
+
 ## 1.1.0 — 2026-07-30
 
 ### Added — this addon stops writing to mailboxes another addon already gave up on

@@ -1,7 +1,9 @@
+<!-- statamic:hide -->
 # Statamic Notifications
 
-Persisted, brand-scoped notifications: types, per-type preferences, in-app,
-immediate mail, and digests that do not repeat themselves.
+> Persisted, brand-scoped notifications: types, per-type preferences, in-app,
+> immediate mail, and digests that do not repeat themselves.
+<!-- /statamic:hide -->
 
 ## Why it exists
 
@@ -10,7 +12,21 @@ aggregation over community tables, a CRM addon's own mail notifier with its own
 digest command, and Laravel's built-in system used purely as a mail sender. None
 of them could be reused by the next domain that needed notifying.
 
-## Install
+## Requirements
+
+| | |
+| --- | --- |
+| Statamic | 6.0+ |
+| Laravel | 12.40+ or 13 |
+| PHP | 8.3+ |
+| Database | MySQL 8, MariaDB 10.6 or SQLite. The tables are Eloquent, not flat files. |
+| Queue | not required. Mail is sent inline; digests run from your scheduler. |
+
+Also requires `goldnead/statamic-brand-context`,
+`goldnead/statamic-identity-contracts` and `goldnead/statamic-suppression`. All
+three behave inertly in a single-brand application.
+
+## Installation
 
 ```bash
 composer require goldnead/statamic-notifications
@@ -18,9 +34,35 @@ php artisan migrate
 php artisan vendor:publish --tag=notifications-config
 ```
 
-Requires `goldnead/statamic-brand-context` and
-`goldnead/statamic-identity-contracts`; both behave inertly in a single-brand
-application.
+The Control Panel screen appears under **Tools → Notifications** for anyone
+holding the `view notifications` permission.
+
+### Publish tags
+
+| Tag | What it copies |
+| --- | --- |
+| `notifications-config` | `config/notifications.php` |
+| `notifications-translations` | `lang/vendor/notifications` (`de`, `en`) |
+| `notifications-migrations` | the four migrations, if you want to own them |
+| `notifications-views` | `resources/views/vendor/notifications` — mail templates and the two CP views |
+
+## Usage
+
+```php
+use Goldnead\Notifications\Facades\Notifications;
+
+Notifications::notify($user, 'community.mention', [
+    'message' => 'Bea hat dich erwähnt.',
+    'link' => '/account/community/posts/'.$post->id,
+    'dedupe_key' => 'mention:'.$mention->id,
+]);
+
+Notifications::unreadCount($user);
+Notifications::markRead($item);
+```
+
+That is the whole minimum: a recipient, a type handle, and a payload. Everything
+below is the detail — types, preferences, channels and digests.
 
 ## Notifying
 
@@ -194,11 +236,44 @@ public function toNotifications($notifiable): array
 
 ## Control Panel
 
-Read-only inspector at **Tools → Notifications**: filter by type, user and
-unread; open one to see its data, dedupe key, read and digest state. It answers
-"did this person get it?", which is the question support actually asks.
+Read-only inspector at **Tools → Notifications**. It is Statamic's own listing
+component, so it behaves like the Entries screen: search, sortable columns,
+saved views, column customisation, pagination, and three filters — type, read
+state, and recipient (which matches on user id, e-mail or contact uuid, because
+support knows the person and not the column). Open a row to see its message,
+link, actor, dedupe key, payload, and read and digest state.
 
-Permissions: `view notifications`, `manage notification digests`.
+It answers "did this person get it?", which is the question support actually
+asks. Nothing on the screen writes.
+
+Permissions: `view notifications`, `manage notification digests`. Both CP routes
+authorise server-side; a user without the permission is redirected out of the
+screen. Set `notifications.cp.enabled` to `false` to remove it entirely.
+
+## Configuration
+
+Every key in `config/notifications.php`, with its default:
+
+| Key | Default | Effect when wrong |
+| --- | --- | --- |
+| `enabled` | `true` | Off means `notify()` writes nothing and sends nothing. |
+| `channels` | `in_app`, `mail`, `digest` | A handle removed here can no longer be named by a type or a preference; existing preferences referencing it are ignored. |
+| `digest.default_frequency` | `weekly` | Applies to anyone who never chose one. A value your scheduler never calls means those people get no digest at all. |
+| `realtime.enabled` | `false` | On without a working broadcaster throws on every notify. |
+| `realtime.channel_prefix` | `users` | Must match what your client subscribes to, or the nudge never arrives. |
+| `list_limit` | `30` | Cap for `list()`/`unreadCount()` in your own front end. Not used by the CP. |
+| `cp.enabled` | `true` | Off removes the inspector, its nav item and its routes. |
+| `sources.leadhub` | `true` | Off keeps the bundled LeadHub digest source out even when the addon is installed. |
+| `preferences_url` | `null` | Null means digest mails print no link to a preference centre. The addon ships no such page; the host owns it. |
+
+## Multi-site
+
+Notifications are **not** scoped per Statamic site. They are scoped per *brand*
+through `goldnead/statamic-brand-context`: every row carries a `brand_id`, and a
+global scope on the model means an operator in brand A cannot read brand B's
+rows even by guessing an id. In a single-brand installation — which is what a
+plain multi-site Statamic is — everything lands in one brand and the scoping is
+invisible.
 
 ## Not in v1
 
@@ -216,8 +291,9 @@ composer install && vendor/bin/pest
 The Integration suite exercises the bundled LeadHub source against the real
 addon and skips itself when it is not installed.
 
-The default run uses in-memory SQLite. The same suite can be pointed at a real
-MySQL server, which is worth doing before a release:
+The default run uses in-memory SQLite. The same suite runs against a real MySQL
+server too, and CI runs it that way on every push — it is a job, not a
+release-day ritual:
 
 ```bash
 vendor/bin/pest -c phpunit.mysql.xml
@@ -230,6 +306,12 @@ production. `tests/Unit/IndexKeyLengthTest.php` closes that particular gap
 without needing a server: it compiles the migrations through Laravel's MySQL
 grammar and measures every index against InnoDB's 3072-byte limit.
 
-## License
+## Support · Changelog · License
 
-MIT
+Issues and questions: <https://github.com/goldnead/statamic-notifications/issues>.
+Best effort, no response-time promise. Report anything security-relevant
+privately to <info@adriangoldner.com> rather than in a public issue.
+
+Release notes: [CHANGELOG.md](CHANGELOG.md).
+
+MIT.

@@ -1,0 +1,8 @@
+{
+    "severity": {
+        "ui.legacy-blade-shell": "minor"
+    },
+    "waivers": {
+        "ui.legacy-blade-shell": "Downgraded from major, not disabled, because the finding is true and the tradeoff is deliberate. The rule wants an Inertia page; an Inertia page needs a registered Vue component, which needs a Vite build, npm, a committed dist/ and a CI job that rebuilds it. That is a whole toolchain for two read-only screens. The compatibility path core documents (statamic.js:206-212, NonInertiaPage) compiles the yielded Blade into a Vue template, so every <ui-*> component — including <ui-listing> with search, filters, saved views and pagination — resolves exactly as it does in a core page; verified in the studio playground on Statamic 6.26 in light and dark mode. What is genuinely given up is named in the rule and is real: no Inertia navigation between these two screens (each is a full page load) and no shared Inertia props. Breadcrumbs are NOT lost — they come from the registered nav item and render. Revisit if this addon ever gains a screen that writes, or a fieldtype: at that point the build exists anyway and the reason for the waiver is gone."
+    }
+}

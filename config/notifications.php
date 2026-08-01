@@ -66,9 +66,43 @@ return [
     |--------------------------------------------------------------------------
     | Listing
     |--------------------------------------------------------------------------
+    |
+    | How many items unreadCount()/list() return to your own front end. The CP
+    | inspector does not use this — its page size is Statamic's own CP setting,
+    | which the operator can change from the listing itself.
+    |
     */
 
     'list_limit' => 30,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Control Panel
+    |--------------------------------------------------------------------------
+    |
+    | The read-only inspector under Tools → Notifications. Both the nav item and
+    | its routes are gated by the `view notifications` permission; switch this
+    | off to remove the screen entirely.
+    |
+    */
+
+    'cp' => [
+        'enabled' => env('NOTIFICATIONS_CP_ENABLED', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Bundled digest sources
+    |--------------------------------------------------------------------------
+    |
+    | Attach only when the sibling addon is installed. Set to false to keep the
+    | source out even then.
+    |
+    */
+
+    'sources' => [
+        'leadhub' => env('NOTIFICATIONS_SOURCE_LEADHUB', true),
+    ],
 
     /*
     |--------------------------------------------------------------------------
