@@ -12,8 +12,22 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $brand_id
  * @property string $type
+ * @property string|null $recipient_type
+ * @property string|null $recipient_id
+ * @property string|null $user_id
+ * @property string|null $contact_uuid
+ * @property string|null $email
+ * @property string|null $actor_type
+ * @property string|null $actor_id
+ * @property string|null $actor_name
+ * @property string|null $message
+ * @property string|null $link
+ * @property array|null $data
+ * @property string|null $dedupe_key
  * @property Carbon|null $read_at
  * @property Carbon|null $digested_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  */
 class NotificationItem extends Model
 {

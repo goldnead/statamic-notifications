@@ -12,6 +12,9 @@ use Goldnead\Notifications\Digest\DigestBuilder;
 use Goldnead\Notifications\Digest\PendingItemRecipientDirectory;
 use Goldnead\Notifications\Digest\SourceRegistry;
 use Goldnead\Notifications\Preferences\PreferenceResolver;
+use Goldnead\Notifications\Query\Scopes\Filters\NotificationType;
+use Goldnead\Notifications\Query\Scopes\Filters\ReadState;
+use Goldnead\Notifications\Query\Scopes\Filters\Recipient;
 use Goldnead\Notifications\Realtime\BroadcastAdapter;
 use Goldnead\Notifications\Sources\LeadHubSource;
 use Goldnead\Notifications\Types\TypeRegistry;
@@ -30,6 +33,14 @@ class ServiceProvider extends AddonServiceProvider
         SendDigestsCommand::class,
         UniquenessIntegrityCommand::class,
     ];
+
+    protected $scopes = [
+        NotificationType::class,
+        ReadState::class,
+        Recipient::class,
+    ];
+
+    protected $viewNamespace = 'notifications';
 
     public function register(): void
     {
@@ -80,12 +91,10 @@ class ServiceProvider extends AddonServiceProvider
     public function bootAddon(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
-        $this->loadViewsFrom(__DIR__.'/../resources/views', 'notifications');
 
         $this->registerLaravelChannel()
             ->registerNavigation()
             ->registerPermissions()
-            ->bootCommands()
             ->registerBundledSources()
             ->registerPublishables();
     }
@@ -117,15 +126,6 @@ class ServiceProvider extends AddonServiceProvider
         return $this;
     }
 
-    protected function bootCommands(): self
-    {
-        if ($this->app->runningInConsole()) {
-            $this->commands($this->commands);
-        }
-
-        return $this;
-    }
-
     protected function registerNavigation(): self
     {
         if (! config('notifications.cp.enabled', true)) {
@@ -135,7 +135,7 @@ class ServiceProvider extends AddonServiceProvider
         Nav::extend(function ($nav): void {
             $nav->create(__('notifications::cp.nav'))
                 ->section('Tools')
-                ->icon('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>')
+                ->icon('bell')
                 ->route('notifications.index')
                 ->can('view notifications');
         });
@@ -159,12 +159,14 @@ class ServiceProvider extends AddonServiceProvider
         return $this;
     }
 
+    /**
+     * Only the two tags the base class has no equivalent for.
+     * `notifications-config` comes from AddonServiceProvider::bootConfig() and
+     * `notifications-translations` from bootTranslations(); repeating them here
+     * would be two implementations of the same tag drifting apart.
+     */
     protected function registerPublishables(): self
     {
-        $this->publishes([
-            __DIR__.'/../config/notifications.php' => config_path('notifications.php'),
-        ], 'notifications-config');
-
         $this->publishes([
             __DIR__.'/../database/migrations' => database_path('migrations'),
         ], 'notifications-migrations');
@@ -172,10 +174,6 @@ class ServiceProvider extends AddonServiceProvider
         $this->publishes([
             __DIR__.'/../resources/views' => resource_path('views/vendor/notifications'),
         ], 'notifications-views');
-
-        $this->publishes([
-            __DIR__.'/../resources/lang' => lang_path('vendor/notifications'),
-        ], 'notifications-translations');
 
         return $this;
     }

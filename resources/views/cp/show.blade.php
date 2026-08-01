@@ -1,43 +1,60 @@
+{{--
+    See the note at the top of index.blade.php. Row data goes into static
+    attributes only: `message` and `dedupe_key` are producer-supplied strings and
+    a mustache in either of them would otherwise break the page at compile time.
+    <ui-description> and <ui-panel heading> both render through v-html, so they
+    carry translated strings and nothing else.
+--}}
 @extends('statamic::layout')
 @section('title', __('notifications::cp.detail_title'))
 
 @section('content')
 
-    <header class="notif-inspector__header">
-        <h1><code>{{ $notification->type }}</code></h1>
-        <p class="notif-inspector__intro">
-            {{ $notification->created_at?->format('Y-m-d H:i:s') }}
-            · {{ $notification->email ?? $notification->user_id ?? $notification->contact_uuid }}
-        </p>
-    </header>
+    <ui-header title="{{ $notification->type }}" icon="bell">
+        <ui-button
+            href="{{ cp_route('notifications.index') }}"
+            text="{{ __('notifications::cp.back_to_index') }}"
+            icon="arrow-left"
+        />
+    </ui-header>
 
-    <div class="card notif-inspector__panel">
-        <dl class="notif-inspector__definitions">
-            <dt>message</dt>
-            <dd>{{ $notification->message ?? '—' }}</dd>
-            <dt>link</dt>
-            <dd>{{ $notification->link ?? '—' }}</dd>
-            <dt>actor</dt>
-            <dd>{{ $notification->actor_name ?? $notification->actor_id ?? '—' }}</dd>
-            <dt>dedupe_key</dt>
-            <dd><code>{{ $notification->dedupe_key ?? '—' }}</code></dd>
-            <dt>{{ __('notifications::cp.col_read') }}</dt>
-            <dd>{{ $notification->read_at?->format('Y-m-d H:i:s') ?? __('notifications::cp.unread') }}</dd>
-            <dt>{{ __('notifications::cp.col_digested') }}</dt>
-            <dd>{{ $notification->digested_at?->format('Y-m-d H:i:s') ?? '—' }}</dd>
-        </dl>
-    </div>
+    <ui-panel heading="{{ __('notifications::cp.detail_title') }}">
+        <ui-card>
+            <ui-table>
+                <ui-table-rows>
+                    @foreach ([
+                        'field_created' => $notification->created_at?->format('Y-m-d H:i:s'),
+                        'col_recipient' => $notification->email ?? $notification->user_id ?? $notification->contact_uuid,
+                        'field_message' => $notification->message,
+                        'field_link' => $notification->link,
+                        'field_actor' => $notification->actor_name ?? $notification->actor_id,
+                        'field_dedupe_key' => $notification->dedupe_key,
+                        'col_read' => $notification->read_at?->format('Y-m-d H:i:s') ?? __('notifications::cp.unread'),
+                        'col_digested' => $notification->digested_at?->format('Y-m-d H:i:s'),
+                    ] as $key => $value)
+                        <ui-table-row>
+                            <ui-table-cell>
+                                <ui-text variant="strong" text="{{ __('notifications::cp.'.$key) }}" />
+                            </ui-table-cell>
+                            <ui-table-cell>
+                                <ui-text text="{{ $value ?? '—' }}" />
+                            </ui-table-cell>
+                        </ui-table-row>
+                    @endforeach
+                </ui-table-rows>
+            </ui-table>
+        </ui-card>
+    </ui-panel>
 
-    <div class="card notif-inspector__panel">
-        <h2 class="notif-inspector__label">{{ __('notifications::cp.detail_data') }}</h2>
-        <pre class="notif-inspector__pre">{{ json_encode($notification->data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) }}</pre>
-    </div>
-@endsection
+    <ui-panel heading="{{ __('notifications::cp.detail_data') }}">
+        <ui-card>
+            <ui-text
+                as="pre"
+                variant="code"
+                class="block overflow-x-auto"
+                text="{{ json_encode($notification->data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) }}"
+            />
+        </ui-card>
+    </ui-panel>
 
-{{-- Deliberately in 'scripts', not 'content': Statamic 6 compiles the yielded
-     Blade of a CP page into a Vue component template, and Vue's template
-     compiler strips <style> tags. The 'scripts' yield sits outside the
-     #statamic mount point, so the rules survive. --}}
-@section('scripts')
-    @include('notifications::cp._styles')
 @endsection
