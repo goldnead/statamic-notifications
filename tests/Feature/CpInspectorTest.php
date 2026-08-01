@@ -3,6 +3,7 @@
 use Goldnead\BrandContext\Facades\BrandContext;
 use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Facades\Notifications;
+use Statamic\Facades\Role;
 use Statamic\Facades\User;
 
 /** A super user passes every permission check; the gate itself is tested separately. */
@@ -14,10 +15,36 @@ function permitted(): void
     test()->actingAs($user);
 }
 
-it('refuses access without the view permission', function (): void {
+/**
+ * A signed-in user who may open the CP but holds no notification permission —
+ * the case the gate on each controller action actually has to catch.
+ */
+function unpermitted(): void
+{
+    Role::make('cp-only')->addPermission('access cp')->save();
+
+    $user = User::make()->email('nobody@example.com')->assignRole('cp-only');
+    $user->save();
+
+    test()->actingAs($user);
+}
+
+it('sends an anonymous visitor to the login screen', function (): void {
     Notifications::notify(Identity::user(1), 'community.mention');
 
-    $this->get('/cp/notifications')->assertForbidden();
+    $this->get('/cp/notifications')->assertRedirect('/cp/auth/login');
+});
+
+it('refuses access without the view permission', function (): void {
+    unpermitted();
+
+    Notifications::notify(Identity::user(1), 'community.mention');
+
+    // Core turns an AuthorizationException inside the CP into a redirect to
+    // /cp rather than a bare 403, so that — not the status code — is what a
+    // denied operator actually sees.
+    $this->get('/cp/notifications')->assertRedirect('/cp');
+    expect(User::current()->can('view notifications'))->toBeFalse();
 });
 
 it('lists notifications for a permitted user', function (): void {

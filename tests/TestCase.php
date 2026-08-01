@@ -2,29 +2,31 @@
 
 namespace Goldnead\Notifications\Tests;
 
+use Goldnead\BrandContext\Facades\BrandContext;
 use Goldnead\BrandContext\Models\Brand;
+use Goldnead\IdentityContracts\Facades\IdentityContext;
+use Goldnead\Notifications\Facades\Notifications;
 use Goldnead\Notifications\ServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Orchestra\Testbench\TestCase as Orchestra;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 use Statamic\Providers\StatamicServiceProvider;
 use Statamic\Statamic;
+use Statamic\Testing\AddonTestCase;
+use Statamic\Testing\Concerns\PreventsSavingStacheItemsToDisk;
 
-abstract class TestCase extends Orchestra
+abstract class TestCase extends AddonTestCase
 {
+    use PreventsSavingStacheItemsToDisk;
     use RefreshDatabase;
+
+    protected string $addonServiceProvider = ServiceProvider::class;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Testbench never fires Statamic::booted callbacks, so bootAddon() —
-        // migrations, views, nav, permissions, channel, sources — must be
-        // invoked by hand.
-        $this->app->getProvider(ServiceProvider::class)?->bootAddon();
-
         $this->artisan('migrate')->run();
 
-        $this->withoutVite();
         $this->giveTestbenchAComposerLock();
 
         app('brand-context')->forget();
@@ -37,6 +39,7 @@ abstract class TestCase extends Orchestra
     {
         return [
             StatamicServiceProvider::class,
+            \Inertia\ServiceProvider::class,
             \Goldnead\BrandContext\ServiceProvider::class,
             \Goldnead\IdentityContracts\ServiceProvider::class,
             \Goldnead\Suppression\ServiceProvider::class,
@@ -48,19 +51,25 @@ abstract class TestCase extends Orchestra
     {
         return [
             'Statamic' => Statamic::class,
-            'Notifications' => \Goldnead\Notifications\Facades\Notifications::class,
-            'BrandContext' => \Goldnead\BrandContext\Facades\BrandContext::class,
-            'IdentityContext' => \Goldnead\IdentityContracts\Facades\IdentityContext::class,
+            'Notifications' => Notifications::class,
+            'BrandContext' => BrandContext::class,
+            'IdentityContext' => IdentityContext::class,
         ];
     }
 
     protected function defineEnvironment($app): void
     {
         $app['config']->set('database.default', 'testing');
-        $app['config']->set('database.connections.testing', $this->testingConnection());
+        $app['config']->set('database.connections.testing', $this->connectionConfig());
 
         $app['config']->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
         $app['config']->set('statamic.users.repository', 'file');
+
+        // The CP routes run through core's real middleware stack here, and
+        // CountUsers refuses a second user without Pro. The addon has nothing
+        // to do with editions; keeping Pro on stops that from masking a
+        // genuine failure.
+        $app['config']->set('statamic.editions.pro', true);
         $app['config']->set('brand-context.multi_brand', false);
         $app['config']->set('mail.default', 'array');
         $app['config']->set('queue.default', 'sync');
@@ -75,7 +84,7 @@ abstract class TestCase extends Orchestra
      * utf8mb4 byte arithmetic and no fixed column widths, which is precisely
      * why a fully green suite let an unbuildable index reach production.
      */
-    protected function testingConnection(): array
+    protected function connectionConfig(): array
     {
         if (env('DB_DRIVER', 'sqlite') !== 'mysql') {
             return [
@@ -101,10 +110,9 @@ abstract class TestCase extends Orchestra
 
     protected function defineRoutes($router): void
     {
-        $router->middleware(['web'])
-            ->prefix('cp')
-            ->name('statamic.cp.')
-            ->group(__DIR__.'/../routes/cp.php');
+        // routes/cp.php is no longer mounted by hand: with a manifest in place
+        // the base provider flushes it into core's authenticated CP group, so
+        // the CP tests exercise the real middleware stack.
         $this->mountStandInSiblingRoutes($router);
     }
 
@@ -127,7 +135,7 @@ abstract class TestCase extends Orchestra
      */
     protected function mountStandInSiblingRoutes($router): void
     {
-        $router->middleware(\Illuminate\Routing\Middleware\SubstituteBindings::class)
+        $router->middleware(SubstituteBindings::class)
             ->group(function ($router) {
                 foreach (static::NAMES_A_SIBLING_MIGHT_USE as $name) {
                     $router->get(
@@ -150,7 +158,6 @@ abstract class TestCase extends Orchestra
     public const NAMES_A_SIBLING_MIGHT_USE = [
         'automation', 'rule', 'template', 'webhook', 'endpoint', 'handle', 'id', 'slug', 'record',
     ];
-
 
     /**
      * Statamic's CP layout resolves its own version from base_path('composer.lock')

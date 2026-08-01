@@ -2,6 +2,9 @@
 
 namespace Goldnead\Notifications\Tests;
 
+use Goldnead\Leadhub\Models\Contact;
+use Goldnead\Leadhub\ServiceProvider;
+
 /**
  * Boots the sibling addons so the bundled sources can be exercised against
  * their real schema, and skips itself when they are not installed.
@@ -10,7 +13,7 @@ abstract class SiblingsTestCase extends TestCase
 {
     protected function setUp(): void
     {
-        if (! class_exists(\Goldnead\Leadhub\Models\Contact::class)) {
+        if (! class_exists(Contact::class)) {
             $this->markTestSkipped('goldnead/statamic-leadhub is not installed.');
         }
 
@@ -20,8 +23,11 @@ abstract class SiblingsTestCase extends TestCase
     protected function getPackageProviders($app): array
     {
         return [
-            ...array_slice(parent::getPackageProviders($app), 0, 3),
-            \Goldnead\Leadhub\ServiceProvider::class,
+            ...array_filter(
+                parent::getPackageProviders($app),
+                fn ($provider) => $provider !== \Goldnead\Notifications\ServiceProvider::class,
+            ),
+            ServiceProvider::class,
             \Goldnead\Notifications\ServiceProvider::class,
         ];
     }
