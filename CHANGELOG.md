@@ -1,7 +1,6 @@
 # Changelog
 
-## Unreleased
-
+## 1.2.0 — 2026-08-01
 ### Fixed — the Control Panel was below the standard the rest of the package holds
 
 `resources/views/cp/_styles.blade.php` is gone. Its header comment justified 112 lines of substitute
