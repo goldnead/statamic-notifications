@@ -5,6 +5,7 @@ namespace Goldnead\Notifications\Http\Controllers\Cp;
 use Goldnead\Notifications\Models\NotificationItem;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
 use Statamic\CP\Column;
 use Statamic\CP\Columns;
 use Statamic\Facades\Scope;
@@ -17,10 +18,11 @@ use Statamic\Statamic;
  * No sending, no editing — the CP is for answering "did this person get it?",
  * which is the question support actually asks.
  *
- * The screen is core's <ui-listing>, so search, sorting, filters, saved views,
+ * The screen is core's <Listing>, so search, sorting, filters, saved views,
  * column customisation and pagination belong to core rather than to us.
- * index() renders the shell; listing() answers the listing's own XHR in the
- * shape documented in ui-vocabulary §3.4.
+ * index() renders the Inertia shell; listing() answers the listing's own XHR
+ * in the shape documented in ui-vocabulary §3.4 — unchanged by the move off
+ * Blade, because it was already the listing's contract and not a view concern.
  */
 class NotificationController extends Controller
 {
@@ -41,9 +43,10 @@ class NotificationController extends Controller
     {
         Gate::authorize('view notifications');
 
-        return view('notifications::cp.index', [
+        return Inertia::render('notifications::Index', [
             'columns' => $this->columns()->rejectUnlisted()->values(),
             'filters' => Scope::filters('notifications'),
+            'listingUrl' => cp_route('notifications.listing'),
             'preferencesPrefix' => self::PREFERENCES_PREFIX,
         ]);
     }
@@ -90,7 +93,36 @@ class NotificationController extends Controller
         // brand B row by guessing its id.
         $notification = NotificationItem::query()->findOrFail($id);
 
-        return view('notifications::cp.show', ['notification' => $notification]);
+        return Inertia::render('notifications::Show', [
+            'notification' => $this->detail($notification),
+            'indexUrl' => cp_route('notifications.index'),
+        ]);
+    }
+
+    /**
+     * The detail page's row, flattened and pre-formatted.
+     *
+     * Only the fields the screen shows go over the wire. The model is not
+     * handed to Inertia wholesale: `brand_id`, the recipient/actor type
+     * discriminators and anything a later migration adds would otherwise
+     * reach the browser without anybody deciding that they should.
+     *
+     * @return array<string, mixed>
+     */
+    private function detail(NotificationItem $item): array
+    {
+        return [
+            'type' => $item->type,
+            'created_at' => $item->created_at?->format('Y-m-d H:i:s'),
+            'recipient' => $item->email ?? $item->user_id ?? $item->contact_uuid,
+            'message' => $item->message,
+            'link' => $item->link,
+            'actor' => $item->actor_name ?? $item->actor_id,
+            'dedupe_key' => $item->dedupe_key,
+            'read_at' => $item->read_at?->format('Y-m-d H:i:s'),
+            'digested_at' => $item->digested_at?->format('Y-m-d H:i:s'),
+            'data' => $item->data,
+        ];
     }
 
     private function columns(): Columns

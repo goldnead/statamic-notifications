@@ -19,12 +19,6 @@ parameters:
 			path: src/Console/UniquenessIntegrityCommand.php
 
 		-
-			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
-			identifier: argument.type
-			count: 2
-			path: src/Http/Controllers/Cp/NotificationController.php
-
-		-
 			message: '#^Access to an undefined property Goldnead\\Notifications\\Models\\NotificationDigestRun\:\:\$contact_uuid\.$#'
 			identifier: property.notFound
 			count: 1
