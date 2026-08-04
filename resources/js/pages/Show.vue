@@ -43,12 +43,13 @@ const payload = computed(() => JSON.stringify(props.notification.data ?? null, n
     <Head :title="[notification.type, __('notifications::cp.title')]" />
 
     <!--
-        No width wrapper of its own, exactly as the Blade page had none: the
-        Layout's `max-w-page` already applies, and a narrower custom container
-        would sit at a different width from every core screen and ignore the
-        header's expand-layout toggle.
+        The narrow detail width from ui-vocabulary §2.3, the pair core uses on
+        pages/forms/Show.vue and pages/preferences/Edit.vue. The Blade page had no
+        wrapper at all and so rendered at listing width; a read-only detail screen
+        belongs at detail width, and statamic-activity's Show page already does this.
+        `data-max-width-wrapper` opts it into the header's expand-layout toggle.
     -->
-    <div>
+    <div class="max-w-5xl 3xl:max-w-6xl mx-auto" data-max-width-wrapper>
         <Header :title="notification.type" icon="bell">
             <!--
                 The only action this read-only screen has, registered in the
