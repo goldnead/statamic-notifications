@@ -40,6 +40,35 @@ class ServiceProvider extends AddonServiceProvider
         Recipient::class,
     ];
 
+    /**
+     * Statamic 6 reads an addon's Vite configuration from this property alone.
+     * `extra.statamic.vite` in composer.json is kept in sync with it for
+     * readers and tooling, but it is not what the CP consults — a build that
+     * only lives there is a build that never loads.
+     *
+     * The three values must byte-match `laravel()` in vite.config.js.
+     *
+     * The parent declares this `list<string>`, which describes the old
+     * `$scripts` shape rather than the one `bootVite()` actually reads
+     * (`AddonServiceProvider::registerVite()` destructures `input` and
+     * `publicDirectory`). Restating the real shape here keeps static analysis
+     * honest instead of carrying the upstream docblock's mistake in a baseline.
+     *
+     * @var array{input: list<string>, publicDirectory: string}
+     */
+    protected $vite = [
+        'input' => [
+            'resources/js/cp.js',
+            'resources/css/cp.css',
+        ],
+        'publicDirectory' => 'resources/dist',
+    ];
+
+    /*
+     * Still set, and still needed: `resources/views` holds the mail templates
+     * (`notifications::mail.notification`, `notifications::mail.digest`), which
+     * stay Blade. Only the two CP screens moved to Inertia.
+     */
     protected $viewNamespace = 'notifications';
 
     public function register(): void

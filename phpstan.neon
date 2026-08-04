@@ -9,3 +9,8 @@ parameters:
     level: 5
     paths:
         - src
+
+    # A PHPDoc correction for statamic/cms's `$vite` property, and nothing
+    # else. See the file for why it is a stub rather than a baseline entry.
+    stubFiles:
+        - .phpstan/addon-service-provider-stubs.php

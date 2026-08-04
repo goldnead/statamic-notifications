@@ -15,6 +15,18 @@
 /pint.json              export-ignore
 /phpstan.neon           export-ignore
 /phpstan-baseline.neon  export-ignore
+/.phpstan               export-ignore
 /addon-lint.json        export-ignore
 
-# Keep: /config, /database, /resources, /routes, /src, README.md, CHANGELOG.md, LICENSE.
+# The CP build's sources and tooling. `resources/dist` is deliberately NOT
+# listed: it is the compiled bundle a Composer install actually loads, and a
+# Marketplace install never runs npm.
+/package.json           export-ignore
+/package-lock.json      export-ignore
+/vite.config.js         export-ignore
+/resources/js           export-ignore
+/resources/css          export-ignore
+/scripts                export-ignore
+
+# Keep: /config, /database, /resources/dist, /resources/lang, /resources/svg,
+# /resources/views, /routes, /src, README.md, CHANGELOG.md, LICENSE.
