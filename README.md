@@ -250,6 +250,20 @@ Permissions: `view notifications`, `manage notification digests`. Both CP routes
 authorise server-side; a user without the permission is redirected out of the
 screen. Set `notifications.cp.enabled` to `false` to remove it entirely.
 
+Both screens are Inertia pages built with Vite. The compiled bundle ships in
+`resources/dist/build`, so a Composer or Marketplace install needs no Node
+toolchain. Working on the screens themselves does:
+
+```bash
+composer install && npm install   # @statamic/cms resolves from vendor/
+npm run dev                       # or: npm run build
+npm test                          # Vitest component tests
+npm run build:check               # fails if the committed bundle is stale
+```
+
+`resources/dist/build` is committed on purpose and must be rebuilt and staged
+with every JS or CSS change; CI's `build-check` job fails on a stale bundle.
+
 ## Configuration
 
 Every key in `config/notifications.php`, with its default:
