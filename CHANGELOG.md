@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 — 2026-08-04
 ### Changed — the two Control Panel screens are Inertia pages with a real build
 
 Both CP screens moved off Blade onto Vue single-file components rendered through
