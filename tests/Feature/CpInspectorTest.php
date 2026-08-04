@@ -3,6 +3,7 @@
 use Goldnead\BrandContext\Facades\BrandContext;
 use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Facades\Notifications;
+use Inertia\Testing\AssertableInertia as Assert;
 use Statamic\Facades\Role;
 use Statamic\Facades\User;
 
@@ -57,18 +58,31 @@ it('refuses every action without the view permission', function (string $path): 
     '/cp/notifications/{id}',
 ]);
 
-it('renders the index on core listing components', function (): void {
+it('renders the index as the registered Inertia page', function (): void {
     permitted();
 
-    $response = $this->get('/cp/notifications')->assertOk();
+    // The component name is a contract with resources/js/cp.js, where the same
+    // string is handed to Statamic.$inertia.register(). A rename on one side
+    // and not the other renders a blank page with no error.
+    $this->get('/cp/notifications')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('notifications::Index')
+            ->where('listingUrl', cp_route('notifications.listing'))
+            ->where('preferencesPrefix', 'notifications.listing')
+            ->has('columns', 5)
+            ->has('filters')
+        );
+});
 
-    // The screen is core's listing, not a hand-built table. If this ever turns
-    // back into markup of our own, these go with it.
-    $response->assertSee('<ui-listing', false);
-    $response->assertSee('cp/notifications/listing', false);
-    $response->assertSee('preferences-prefix="notifications.listing"', false);
-    $response->assertDontSee('<table', false);
-    $response->assertDontSee('class="card', false);
+it('hands the index every column, in the order the screen shows them', function (): void {
+    permitted();
+
+    $columns = collect($this->get('/cp/notifications')->viewData('page')['props']['columns'])
+        ->pluck('field')
+        ->all();
+
+    expect($columns)->toBe(['created_at', 'type', 'recipient', 'read_at', 'digested_at']);
 });
 
 it('offers the three filters to the listing', function (): void {
@@ -76,11 +90,29 @@ it('offers the three filters to the listing', function (): void {
 
     Notifications::notify(Identity::user(1), 'community.mention');
 
-    $response = $this->get('/cp/notifications')->assertOk();
+    $filters = collect($this->get('/cp/notifications')->viewData('page')['props']['filters'])
+        ->pluck('handle')
+        ->all();
 
-    foreach (['notification_type', 'notification_read_state', 'notification_recipient'] as $handle) {
-        $response->assertSee($handle, false);
-    }
+    expect($filters)->toEqualCanonicalizing([
+        'notification_type',
+        'notification_read_state',
+        'notification_recipient',
+    ]);
+});
+
+it('gives the Control Panel Javascript the addon\'s own translation keys', function (): void {
+    permitted();
+
+    // Both Vue pages call `__('notifications::cp.…')`. Those keys only resolve
+    // in the browser because the addon registers its lang namespace on the
+    // translator, which Statamic flattens into the CP's JS translations. Drop
+    // the namespace registration and the screen renders raw keys — visibly
+    // broken, and nothing else fails.
+    $translations = app('translator')->toJson();
+
+    expect($translations)->toHaveKey('notifications::cp.title');
+    expect($translations['notifications::cp.unread'])->toBe('unread');
 });
 
 it('answers the listing endpoint in the shape the listing expects', function (): void {
@@ -216,33 +248,58 @@ it('paginates', function (): void {
 it('shows a single notification', function (): void {
     permitted();
 
-    $item = Notifications::notify(Identity::user(1), 'community.mention', [
+    $item = Notifications::notify(Identity::user(1, 'member@example.com'), 'community.mention', [
         'message' => 'Bea hat dich erwähnt',
         'dedupe_key' => 'mention:1',
     ]);
 
     $this->get('/cp/notifications/'.$item->id)
         ->assertOk()
-        ->assertSee('Bea hat dich erwähnt')
-        ->assertSee('mention:1')
-        ->assertSee('<ui-panel', false)
-        ->assertDontSee('class="card', false);
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('notifications::Show')
+            ->where('indexUrl', cp_route('notifications.index'))
+            ->where('notification.type', 'community.mention')
+            ->where('notification.recipient', 'member@example.com')
+            ->where('notification.message', 'Bea hat dich erwähnt')
+            ->where('notification.dedupe_key', 'mention:1')
+            ->where('notification.read_at', null)
+        );
 });
 
-it('does not let a notification body become a Vue expression', function (): void {
+it('sends the detail page only the fields it shows', function (): void {
     permitted();
 
-    // The CP compiles this page's Blade into a Vue template, so a mustache in
-    // producer-supplied text is a page-breaking compile error unless the value
-    // stays inside a static attribute. Nothing about the screen looks wrong
-    // when this regresses — it just stops rendering.
+    $item = Notifications::notify(Identity::user(1), 'community.mention');
+
+    // The model is not handed over wholesale. `brand_id` and the recipient /
+    // actor type discriminators are internal, and a column a later migration
+    // adds must not reach the browser because nobody looked.
+    $notification = $this->get('/cp/notifications/'.$item->id)
+        ->viewData('page')['props']['notification'];
+
+    expect(array_keys($notification))->toEqualCanonicalizing([
+        'type', 'created_at', 'recipient', 'message', 'link',
+        'actor', 'dedupe_key', 'read_at', 'digested_at', 'data',
+    ]);
+});
+
+it('carries a notification body through verbatim, mustaches included', function (): void {
+    permitted();
+
+    // While these screens were Blade, core compiled them into a Vue template
+    // and a mustache in producer-supplied text was a page-breaking compile
+    // error unless the value stayed inside a static attribute. As an Inertia
+    // prop the string is data and is never compiled — this pins that it also
+    // is not mangled on the way out.
     $item = Notifications::notify(Identity::user(1), 'community.mention', [
         'message' => 'total {{ 2 + 2 }}',
     ]);
 
     $this->get('/cp/notifications/'.$item->id)
         ->assertOk()
-        ->assertSee('text="total {{ 2 + 2 }}"', false);
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('notification.message', 'total {{ 2 + 2 }}')
+        );
 });
 
 it('cannot read another brand\'s notification by guessing its id', function (): void {
