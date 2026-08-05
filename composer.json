@@ -56,7 +56,14 @@
             "url": "https://github.com/goldnead/statamic-notifications",
             "description": "Persisted, brand-scoped notifications with per-type preferences and digests.",
             "developer": "Adrian Goldner",
-            "developer-url": "https://gldnr.studio"
+            "developer-url": "https://gldnr.studio",
+            "vite": {
+                "input": [
+                    "resources/js/cp.js",
+                    "resources/css/cp.css"
+                ],
+                "publicDirectory": "resources/dist"
+            }
         },
         "laravel": {
             "providers": [

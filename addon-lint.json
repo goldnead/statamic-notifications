@@ -1,8 +1,11 @@
 {
+    "//": "One rule is not applied at its default severity. The entry says why, and what would make it apply again. A suppression without that is a lie in a config file.",
+
     "severity": {
-        "ui.legacy-blade-shell": "minor"
+        "ui.listing-component": "info"
     },
-    "waivers": {
-        "ui.legacy-blade-shell": "Downgraded from major, not disabled, because the finding is true and the tradeoff is deliberate. The rule wants an Inertia page; an Inertia page needs a registered Vue component, which needs a Vite build, npm, a committed dist/ and a CI job that rebuilds it. That is a whole toolchain for two read-only screens. The compatibility path core documents (statamic.js:206-212, NonInertiaPage) compiles the yielded Blade into a Vue template, so every <ui-*> component — including <ui-listing> with search, filters, saved views and pagination — resolves exactly as it does in a core page; verified in the studio playground on Statamic 6.26 in light and dark mode. What is genuinely given up is named in the rule and is real: no Inertia navigation between these two screens (each is a full page load) and no shared Inertia props. Breadcrumbs are NOT lost — they come from the registered nav item and render. Revisit if this addon ever gains a screen that writes, or a fieldtype: at that point the build exists anyway and the reason for the waiver is gone."
+
+    "reasons": {
+        "ui.listing-component": "False positive as of this commit. The rule matches `<table` case-insensitively (rules/NativeUiRules.php:606), so it fires on the native `<Table>` / `<TableRow>` / `<TableCell>` components imported from @statamic/cms/ui. resources/js/pages/Show.vue uses those to lay out eight label-and-value rows for one record — the same `<ui-table>` markup the Blade page it replaces used, and the shape ui-vocabulary §1.6 lists for a static table. It is not a record list: there is nothing to search, sort, filter or paginate on a single notification. The screen that IS a record list, resources/js/pages/Index.vue, uses core's `<Listing>` in server mode with filters, saved views and pagination, and tests/js/index.test.js pins that. Revisit when the rule stops matching capitalised component tags, or if this page ever grows a second record."
     }
 }

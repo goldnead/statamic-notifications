@@ -1,5 +1,53 @@
 # Changelog
 
+## 1.3.0 — 2026-08-04
+### Changed — the two Control Panel screens are Inertia pages with a real build
+
+Both CP screens moved off Blade onto Vue single-file components rendered through
+Inertia, the way core and the eight sibling addons do it. `resources/views/cp/`
+is gone; `resources/js/pages/Index.vue` and `resources/js/pages/Show.vue` take
+its place, registered in `resources/js/cp.js` and served by
+`Inertia::render('notifications::Index')` and `…::Show`.
+
+Nothing about the screens changed. Same columns in the same order, same three
+filters, same sort default, same saved views and pagination, same detail fields,
+same routes and route names. The listing endpoint at `notifications.listing` is
+untouched — it was always the listing component's contract rather than a view
+concern.
+
+What the move buys, beyond ending the last Blade-shell exception in the family:
+
+- **Inertia navigation between the two screens** instead of a full page load
+  each way, and shared props.
+- **The mustache hazard is gone.** While the pages were Blade, core compiled
+  them into a Vue template, so a `{{ … }}` in a producer-supplied message was a
+  compile error that silently stopped the screen from rendering. Every value had
+  to be pushed into a static attribute to avoid it. Props are data and are never
+  compiled; the rule and the gymnastics it forced both retire.
+- **The detail page sends only what it shows.** `brand_id`, the recipient and
+  actor type discriminators and anything a later migration adds no longer travel
+  to the browser just because the model was handed over whole.
+- **The way back to the index is in the command palette**, like every core
+  page-level action.
+
+The build is the standard one: `vite.config.js`, `package.json`,
+`resources/css/cp.css` importing `@statamic/cms/tailwind.css`, and the `$vite`
+property on the service provider — which is the only place Statamic 6 reads it
+from; `extra.statamic.vite` in `composer.json` is kept in sync but is not
+consulted. `resources/dist/build` is committed, because a Marketplace or
+Composer install never runs npm, and `npm run build:check` plus a `build-check`
+CI job fail if the committed bundle drifts from source.
+
+Tests: 19 Vitest component tests for the two pages, and the PHP CP suite now
+asserts the Inertia component name and props rather than rendered HTML. It also
+pins that the addon's `notifications::cp.*` translation keys reach the Control
+Panel's Javascript translator — without that registration the screens would
+render raw keys and nothing else would fail.
+
+`resources/views` stays published and `$viewNamespace` stays set: the mail
+templates (`notifications::mail.notification`, `notifications::mail.digest`) are
+Blade and remain so.
+
 ## 1.2.0 — 2026-08-01
 ### Fixed — the Control Panel was below the standard the rest of the package holds
 
