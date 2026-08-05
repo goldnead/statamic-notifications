@@ -2,6 +2,7 @@
 
 return [
     'nav' => 'Notifications',
+    'nav_mail_rules' => 'Mail rules',
     'permission_view' => 'View notifications',
     'permission_digests' => 'Run and inspect digests',
     'title' => 'Notifications',

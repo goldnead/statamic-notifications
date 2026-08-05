@@ -17,6 +17,7 @@ use Goldnead\Notifications\Query\Scopes\Filters\ReadState;
 use Goldnead\Notifications\Query\Scopes\Filters\Recipient;
 use Goldnead\Notifications\Realtime\BroadcastAdapter;
 use Goldnead\Notifications\Sources\LeadHubSource;
+use Goldnead\Notifications\Support\AutomationRules;
 use Goldnead\Notifications\Types\TypeRegistry;
 use Illuminate\Support\Facades\Notification as LaravelNotification;
 use Statamic\Facades\CP\Nav;
@@ -162,11 +163,22 @@ class ServiceProvider extends AddonServiceProvider
         }
 
         Nav::extend(function ($nav): void {
-            $nav->create(__('notifications::cp.nav'))
+            $item = $nav->create(__('notifications::cp.nav'))
                 ->section('Tools')
                 ->icon('bell')
                 ->route('notifications.index')
                 ->can('view notifications');
+
+            // Transactional mail rules are configured in the automations
+            // addon, and somebody looking for them looks here first. So this
+            // points at that screen when it exists — a signpost, never a second
+            // place where an event turns into a mail. See AutomationRules.
+            if (AutomationRules::available()) {
+                $item->children([
+                    $nav->item(__('notifications::cp.nav_mail_rules'))
+                        ->route(AutomationRules::NAV_ROUTE),
+                ]);
+            }
         });
 
         return $this;

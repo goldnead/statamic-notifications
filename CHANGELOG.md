@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.4.0 — 2026-08-05
+
+### Added — Wegweiser zu den Mail-Regeln in `statamic-automations`
+
+Transaktionale Mail-Regeln („wenn ein Formular abgeschickt wird, sende die Dankesmail") werden im
+Addon `goldnead/statamic-automations` konfiguriert. Gesucht werden sie zuerst hier, im Addon, das
+Notifications heißt. Deshalb gibt es jetzt einen Nav-Eintrag **Benachrichtigungen → Mail-Regeln**,
+der dorthin zeigt.
+
+Der Eintrag erscheint nur, wenn zwei Bedingungen gelten (`Support\AutomationRules`): das Addon ist
+installiert, **und** die installierte Version hat den Bildschirm auch (er kam mit automations 1.11).
+Ohne die zweite Prüfung bekäme ein älterer Stand einen Nav-Eintrag auf einen 404 — schlechter als
+gar keiner, weil er wie ein kaputtes Feature aussieht statt wie ein fehlendes.
+
+**Ein Wegweiser, keine zweite Implementierung.** Dieses Addon bekommt keinen eigenen Weg von einem
+Ereignis zu einer Mail. Könnten beide Addons das, hätte „warum kam diese Mail" zwei mögliche
+Antworten und von außen keine Möglichkeit, sie zu unterscheiden. Ein Test hält das fest: er schlägt
+fehl, sobald hier ein Event-Listener auftaucht.
+
 ## 1.3.0 — 2026-08-04
 ### Changed — the two Control Panel screens are Inertia pages with a real build
 
