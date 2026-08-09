@@ -29,7 +29,7 @@
         "statamic/cms": "^6.0"
     },
     "require-dev": {
-        "goldnead/statamic-leadhub": "^1.4",
+        "goldnead/statamic-leadhub": "^1.4|^2.0",
         "larastan/larastan": "^3.10",
         "laravel/pint": "^1.30",
         "orchestra/testbench": "^10.0|^11.0",
