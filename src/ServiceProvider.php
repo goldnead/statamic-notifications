@@ -8,6 +8,7 @@ use Goldnead\Notifications\Channels\LaravelChannelAdapter;
 use Goldnead\Notifications\Console\SendDigestsCommand;
 use Goldnead\Notifications\Console\UniquenessIntegrityCommand;
 use Goldnead\Notifications\Contracts\RecipientDirectory;
+use Goldnead\Notifications\Contracts\SenderIdentityResolver;
 use Goldnead\Notifications\Digest\DigestBuilder;
 use Goldnead\Notifications\Digest\PendingItemRecipientDirectory;
 use Goldnead\Notifications\Digest\SourceRegistry;
@@ -16,6 +17,8 @@ use Goldnead\Notifications\Query\Scopes\Filters\NotificationType;
 use Goldnead\Notifications\Query\Scopes\Filters\ReadState;
 use Goldnead\Notifications\Query\Scopes\Filters\Recipient;
 use Goldnead\Notifications\Realtime\BroadcastAdapter;
+use Goldnead\Notifications\Sending\BrandMailer;
+use Goldnead\Notifications\Sending\BrandSenderIdentity;
 use Goldnead\Notifications\Sources\LeadHubSource;
 use Goldnead\Notifications\Support\AutomationRules;
 use Goldnead\Notifications\Types\TypeRegistry;
@@ -87,6 +90,14 @@ class ServiceProvider extends AddonServiceProvider
         $this->app->singleton(TypeRegistry::class);
         $this->app->singleton(SourceRegistry::class);
         $this->app->singleton(BroadcastAdapter::class);
+
+        // Who a notification goes out as, and over which transport. Bound to
+        // an interface so a host that keeps sender identities somewhere other
+        // than `brands.settings.mail` rebinds it instead of patching the
+        // addon; the shipped implementation leaves a single-brand install
+        // sending exactly as before.
+        $this->app->singleton(SenderIdentityResolver::class, BrandSenderIdentity::class);
+        $this->app->singleton(BrandMailer::class);
 
         $this->app->singleton(ChannelRegistry::class, function (): ChannelRegistry {
             $registry = new ChannelRegistry;

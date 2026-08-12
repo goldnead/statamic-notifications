@@ -6,21 +6,37 @@ use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Contracts\Channel;
 use Goldnead\Notifications\Mail\NotificationMail;
 use Goldnead\Notifications\Models\NotificationItem;
+use Goldnead\Notifications\Sending\BrandMailer;
 use Goldnead\Notifications\Types\TypeRegistry;
 use Goldnead\Suppression\Contracts\Gate as SuppressionGate;
 use Goldnead\Suppression\Exceptions\SuppressionCheckFailed;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 /**
  * Immediate one-per-notification e-mail. The subject and body come from the
  * type's renderer, so the addon never writes a sentence of its own.
+ *
+ * The send goes through {@see BrandMailer} rather than the `Mail` facade. Until
+ * 12.08.2026 the last line of `send()` read `Mail::to($address)->send(...)`,
+ * which is the process-wide default mailer with the process-wide From. In a
+ * host serving several brands out of one queue worker that means the second
+ * brand's notification leaves under the first brand's address, and a relay that
+ * verifies sending domains per account either refuses it or rewrites the From
+ * to somebody else's verified identity. In a single-brand install nothing
+ * changes: the resolver returns the config identity and this is the same send
+ * it always was.
  */
 class MailChannel implements Channel
 {
+    /**
+     * `$mailer` is optional so that a host subclassing this channel — which the
+     * hub does — keeps working across the upgrade without touching its
+     * `parent::__construct()` call.
+     */
     public function __construct(
         protected TypeRegistry $types,
         protected SuppressionGate $gate,
+        protected ?BrandMailer $mailer = null,
     ) {}
 
     public function send(NotificationItem $item, Identity $recipient): void
@@ -37,7 +53,14 @@ class MailChannel implements Channel
 
         $rendered = $this->types->get($item->type)->render($item);
 
-        Mail::to($address)->send(new NotificationMail($item, $rendered));
+        // Brand from context: the manager runs every dispatch inside the brand
+        // the notification belongs to.
+        $this->mailer()->send(null, $address, $recipient->name, new NotificationMail($item, $rendered));
+    }
+
+    protected function mailer(): BrandMailer
+    {
+        return $this->mailer ??= app(BrandMailer::class);
     }
 
     /**

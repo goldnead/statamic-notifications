@@ -9,12 +9,20 @@ use Goldnead\Notifications\Contracts\RecipientDirectory;
 use Goldnead\Notifications\Digest\DigestBuilder;
 use Goldnead\Notifications\Mail\DigestMail;
 use Goldnead\Notifications\Preferences\PreferenceResolver;
+use Goldnead\Notifications\Sending\BrandMailer;
 use Goldnead\Suppression\Contracts\Gate as SuppressionGate;
 use Goldnead\Suppression\Exceptions\SuppressionCheckFailed;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Mail;
 
+/**
+ * One process, every brand, in sequence — which is exactly the shape in which
+ * a process-wide sender identity does its damage. Until 12.08.2026 the send
+ * line was `Mail::to(...)->send(new DigestMail(...))`: default mailer, global
+ * From, identical for brand one and brand five. It now goes through
+ * {@see BrandMailer}, and a brand that cannot produce a usable identity is
+ * skipped *before* anything is stamped.
+ */
 class SendDigestsCommand extends Command
 {
     protected $signature = 'notifications:send-digests
@@ -48,7 +56,7 @@ class SendDigestsCommand extends Command
             }
 
             $exit = BrandContext::runFor($brand ?? BrandContext::defaultId(), fn () => $this->sendFor(
-                $builder, $preferences, $directory, $frequency
+                $builder, $preferences, $directory, $frequency, $brand
             ));
 
             if ($exit !== self::SUCCESS) {
@@ -78,10 +86,34 @@ class SendDigestsCommand extends Command
         PreferenceResolver $preferences,
         RecipientDirectory $directory,
         string $frequency,
+        ?Brand $brand = null,
     ): int {
 
         $now = $this->option('now') ? Carbon::parse($this->option('now')) : null;
         $dryRun = (bool) $this->option('dry-run');
+
+        $mailer = app(BrandMailer::class);
+        $brandId = $brand?->getKey() === null ? null : (int) $brand->getKey();
+
+        // In front of the loop, and that placement is the point.
+        //
+        // `markSent()` stamps `digested_at` on every collected item before the
+        // mail leaves. A brand whose sender identity is unusable would
+        // therefore burn each recipient's whole window — items marked
+        // delivered, nothing delivered, and nothing resurfaced on the next run.
+        // Asking once here costs one resolve and loses nothing: everything
+        // stays pending until the identity is fixed.
+        //
+        // A dry run still reports, because "what would this send" must not
+        // quietly answer for a brand that cannot send at all.
+        if (! $dryRun && ! $mailer->maySend($brandId)) {
+            $this->components->warn(sprintf(
+                'Brand [%s] skipped: no usable sender identity. Nothing collected, nothing marked. See the log.',
+                $brand === null ? 'default' : $brand->handle,
+            ));
+
+            return self::SUCCESS;
+        }
 
         $sent = 0;
         $skippedEmpty = 0;
@@ -138,7 +170,12 @@ class SendDigestsCommand extends Command
             }
 
             if ($recipient->email !== null && $recipient->email !== '') {
-                Mail::to($recipient->email)->send(new DigestMail($recipient, $collected, $frequency));
+                $mailer->send(
+                    $brandId,
+                    $recipient->email,
+                    $recipient->name,
+                    new DigestMail($recipient, $collected, $frequency),
+                );
             }
 
             $sent++;

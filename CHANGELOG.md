@@ -1,5 +1,58 @@
 # Changelog
 
+## 1.5.0 — 2026-08-12
+
+### Fixed — every brand sent as whoever the process had sent as first
+
+`MailChannel` and `notifications:send-digests` both ended in `Mail::to(...)->send(...)`. That is
+the process-wide default mailer with the process-wide `mail.from`, identically for every brand.
+A host serving several brands out of one queue worker — or one digest run walking its brand list —
+therefore delivered the second brand's mail under the first brand's name and address, and a relay
+that verifies sending domains per account (Scaleway TEM, Postmark, SES) answers that by refusing
+the message or rewriting the From to whichever identity the shared account owns. Either way the
+recipient hears from the wrong company, and nothing turns red.
+
+**Who a notification goes out as is now resolved per message, from values, and never from config.**
+`Contracts\SenderIdentityResolver` answers "which mailer, which From, which locale for brand N";
+`Sending\BrandMailer` is the single door both send paths leave through, and it puts the answer on
+the message (`Mailable::from()`, `Mail::mailer($name)`).
+
+Not on the config, deliberately: Laravel reads `mail.from` the first time a mailer name is resolved,
+burns it into that mailer instance via `alwaysFrom()`, and caches the instance in the `mail.manager`
+singleton. A scoped `Config::set` therefore escapes its own `finally` — whichever brand sends first
+leaves its address standing for the rest of the process. That is the same bug one layer down, and
+it is why nothing here writes to `mail.*`.
+
+### Fixed — the digest could burn a recipient's window without sending anything
+
+`DigestBuilder::markSent()` stamps `digested_at` on every collected item *before* the mail leaves.
+A brand that cannot produce a usable sender identity would have had each recipient's whole window
+marked as delivered with nothing delivered, and the items would never have resurfaced. The check
+now runs in front of the recipient loop: the brand is skipped, nothing is collected, nothing is
+stamped, and everything stays pending until the settings are fixed.
+
+### Changed — a brand that declares a broken mail identity sends nothing
+
+Read from `brands.settings.mail`:
+
+| key | meaning |
+| --- | --- |
+| `from_address` | required once `mail` is present at all |
+| `from_name` | defaults to the brand name |
+| `mailer` | a mailer from `config/mail.php` |
+| `locale` | the language its mail is written in |
+
+A brand that declares `mail` without `from_address`, or names a `mailer` that `config/mail.php`
+does not define, now sends **nothing** and says so at error level (throttled per brand, so a
+fan-out cannot bury it). The alternative was delivering under the host-wide From, which on a
+multi-brand host is somebody else's identity — quietly.
+
+**A single-brand install is unchanged, and that is covered by tests rather than intent.** So is a
+multi-brand install whose brands carry no `settings.mail`: no brand, or no mail settings, resolves
+to the config identity and the send is byte for byte the one it always was. A host that keeps
+sender identities somewhere else rebinds `SenderIdentityResolver` in its own provider instead of
+patching this package.
+
 ## 1.4.1 — 2026-08-09
 
 ### Fixed — the sibling constraint excluded the new majors
