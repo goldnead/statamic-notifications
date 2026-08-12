@@ -21,7 +21,7 @@
         "source": "https://github.com/goldnead/statamic-notifications"
     },
     "require": {
-        "goldnead/statamic-brand-context": "^1.0",
+        "goldnead/statamic-brand-context": "^1.8",
         "goldnead/statamic-identity-contracts": "^1.0",
         "goldnead/statamic-suppression": "^1.0",
         "laravel/framework": "^12.0|^13.0",

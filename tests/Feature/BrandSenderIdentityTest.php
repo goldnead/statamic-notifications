@@ -2,13 +2,13 @@
 
 use Goldnead\BrandContext\Facades\BrandContext;
 use Goldnead\BrandContext\Models\Brand;
+use Goldnead\BrandContext\Sending\SaidRecently;
+use Goldnead\BrandContext\Sending\SenderIdentity;
 use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Contracts\SenderIdentityResolver;
 use Goldnead\Notifications\Facades\Notifications;
 use Goldnead\Notifications\Models\NotificationItem;
 use Goldnead\Notifications\Sending\BrandMailer;
-use Goldnead\Notifications\Sending\SaidRecently;
-use Goldnead\Notifications\Sending\SenderIdentity;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\Log;
