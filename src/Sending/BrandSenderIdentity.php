@@ -5,6 +5,7 @@ namespace Goldnead\Notifications\Sending;
 use Goldnead\BrandContext\Facades\BrandContext;
 use Goldnead\BrandContext\Models\Brand;
 use Goldnead\Notifications\Contracts\SenderIdentityResolver;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -65,6 +66,17 @@ class BrandSenderIdentity implements SenderIdentityResolver
         if ($mail === []) {
             // The brand exists but says nothing about mail. Nothing changes —
             // including the locale, which stays whatever the app decided.
+            //
+            // Under multi-brand that silence is itself a misconfiguration, and
+            // it is the one the code cannot close: this brand's mail leaves
+            // under the host-wide From, which on a host serving several brands
+            // is another brand's address. Refusing here would be the honest
+            // answer and the wrong one — an install that switches multi-brand
+            // on before filling the rows in would fall silent on an upgrade,
+            // and silence is the failure mode this whole class is fighting. So
+            // it sends, and it says so, once per brand per window.
+            $this->sayNothingDeclared($brand);
+
             return SenderIdentity::fromConfig();
         }
 
@@ -135,6 +147,36 @@ class BrandSenderIdentity implements SenderIdentityResolver
 
             return null;
         }
+    }
+
+    /**
+     * A brand that has told the installation nothing about who it sends as.
+     *
+     * Only under multi-brand: with one brand the config identity IS that
+     * brand's identity, there is no foreign name to send under, and a warning
+     * would be noise on every single-brand install in existence.
+     */
+    protected function sayNothingDeclared(Brand $brand): void
+    {
+        try {
+            if (! BrandContext::multiBrandEnabled()) {
+                return;
+            }
+        } catch (Throwable) {
+            return;
+        }
+
+        if (! SaidRecently::shouldSay('undeclared:'.$this->label($brand))) {
+            return;
+        }
+
+        Log::warning(sprintf(
+            'Brand [%s] declares no settings.mail. Its mail goes out under the host-wide from-address '
+            .'and the default transport, which in a multi-brand installation is another brand\'s '
+            .'identity. Set settings.mail.from_address (and settings.mail.mailer, if its domain is '
+            .'verified in a different relay account).',
+            $this->label($brand),
+        ));
     }
 
     protected function label(Brand $brand): string

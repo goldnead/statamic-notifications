@@ -55,6 +55,19 @@ final class SenderIdentity
 
     /**
      * An identity a brand declared.
+     *
+     * **A named transport without an address is refused here, not built.** The
+     * bundled resolver never produces that combination, but a host is free to
+     * bind its own, and this constructor is the only thing standing between a
+     * host resolver's typo and the exact failure the class exists to prevent:
+     * one brand's relay account carrying another brand's From. The invariant
+     * belongs where it cannot be forgotten rather than in whichever resolver
+     * happens to be bound.
+     *
+     * The other direction stays legitimate and silent: an address without a
+     * mailer means "my domain is verified in the account the app already
+     * uses", which is the ordinary case for the brand the global credentials
+     * belong to.
      */
     public static function of(
         ?string $mailer,
@@ -62,6 +75,15 @@ final class SenderIdentity
         ?string $fromName,
         ?string $locale = null,
     ): self {
+        if ($mailer !== null && $fromAddress === null) {
+            return self::refusing(sprintf(
+                'A sender identity names the mailer [%s] but no from-address. Nothing was sent: that '
+                .'pairs one brand\'s transport with the host-wide From, which a relay verifying '
+                .'sending domains per account refuses — or delivers under somebody else\'s name.',
+                $mailer,
+            ));
+        }
+
         return new self($mailer, $fromAddress, $fromName, $locale);
     }
 

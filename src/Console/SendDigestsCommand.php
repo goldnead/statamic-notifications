@@ -64,8 +64,17 @@ class SendDigestsCommand extends Command
             }
         }
 
-        return self::SUCCESS;
+        return $this->lost > 0 ? self::FAILURE : self::SUCCESS;
     }
+
+    /**
+     * Digests stamped as sent that never left, across every brand of this run.
+     *
+     * The one outcome a scheduler must not read as a quiet success: those
+     * recipients' windows are marked as digested and nothing arrived, and
+     * nothing brings them back.
+     */
+    protected int $lost = 0;
 
     /** @return iterable<Brand|null> */
     protected function brands(): iterable
@@ -103,22 +112,27 @@ class SendDigestsCommand extends Command
         // delivered, nothing delivered, and nothing resurfaced on the next run.
         // Asking once here costs one resolve and loses nothing: everything
         // stays pending until the identity is fixed.
-        //
-        // A dry run still reports, because "what would this send" must not
-        // quietly answer for a brand that cannot send at all.
-        if (! $dryRun && ! $mailer->maySend($brandId)) {
+        if (! $mailer->maySend($brandId)) {
             $this->components->warn(sprintf(
-                'Brand [%s] skipped: no usable sender identity. Nothing collected, nothing marked. See the log.',
+                'Brand [%s]: no usable sender identity. See the log.',
                 $brand === null ? 'default' : $brand->handle,
             ));
 
-            return self::SUCCESS;
+            // A dry run answers "what would this send" and must not answer it
+            // for a brand that cannot send at all — but it also must not stop
+            // at the first broken brand, because reporting the rest is the
+            // whole point of a dry run. So it says the sentence and moves on;
+            // a real run leaves without collecting or stamping anything.
+            if (! $dryRun) {
+                return self::SUCCESS;
+            }
         }
 
         $sent = 0;
         $skippedEmpty = 0;
         $skippedAlreadySent = 0;
         $skippedSuppressed = 0;
+        $lost = 0;
 
         foreach ($directory->digestRecipients($frequency) as $recipient) {
             if (! $recipient instanceof Identity || ! $recipient->isIdentified()) {
@@ -170,12 +184,23 @@ class SendDigestsCommand extends Command
             }
 
             if ($recipient->email !== null && $recipient->email !== '') {
-                $mailer->send(
+                // The per-brand guard above covers the ordinary case, and it
+                // has to, because it is the only check that runs before the
+                // stamp. This one catches the narrow window it cannot: a brand
+                // row edited during a long run, or a host resolver that answers
+                // differently over time. The items are already stamped by then,
+                // so nothing can be undone — but a run that stamped a week of
+                // items and delivered nothing must not report success.
+                if (! $mailer->send(
                     $brandId,
                     $recipient->email,
                     $recipient->name,
                     new DigestMail($recipient, $collected, $frequency),
-                );
+                )) {
+                    $lost++;
+
+                    continue;
+                }
             }
 
             $sent++;
@@ -189,6 +214,20 @@ class SendDigestsCommand extends Command
             $skippedAlreadySent,
             $skippedSuppressed,
         ));
+
+        if ($lost > 0) {
+            $this->components->error(sprintf(
+                '%d digest(s) were marked as sent but could not be delivered: the sender identity became '
+                .'unusable mid-run. Those items will not resurface.',
+                $lost,
+            ));
+
+            // Counted rather than returned. A non-SUCCESS exit here would stop
+            // `handle()` before the remaining brands, and one brand's broken
+            // row must never cost the others their weekly mail. The run ends
+            // non-zero once, at the end, where a scheduler still sees it.
+            $this->lost += $lost;
+        }
 
         return self::SUCCESS;
     }

@@ -53,9 +53,18 @@ class MailChannel implements Channel
 
         $rendered = $this->types->get($item->type)->render($item);
 
-        // Brand from context: the manager runs every dispatch inside the brand
-        // the notification belongs to.
-        $this->mailer()->send(null, $address, $recipient->name, new NotificationMail($item, $rendered));
+        // The brand comes off the row, not out of the ambient context. Today
+        // the two agree — `NotificationManager` dispatches inside the brand it
+        // just wrote — but "today they agree" is not a guarantee: a host that
+        // calls this channel from a job of its own, or an installation running
+        // `brand-context.fail_mode=open`, would resolve no brand at all and
+        // fall back to the config identity without a word. The row knows.
+        $this->mailer()->send(
+            (int) $item->brand_id,
+            $address,
+            $recipient->name,
+            new NotificationMail($item, $rendered),
+        );
     }
 
     protected function mailer(): BrandMailer

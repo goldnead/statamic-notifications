@@ -138,6 +138,15 @@ class BrandMailer
             }
 
             $build($message, $identity);
+
+            // And again afterwards. Until this line, "the callback must not
+            // overwrite the brand identity" was a sentence in a docblock, and
+            // a sentence in a docblock is not a guarantee: the one caller who
+            // misses it sends under a foreign name and nobody notices. The
+            // callback may set everything else; whoever has a brand keeps it.
+            if ($identity->fromAddress !== null) {
+                $message->from($identity->fromAddress, $identity->fromName);
+            }
         };
 
         $html !== null
