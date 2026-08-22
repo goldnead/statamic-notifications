@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.7.0 — 2026-08-22
+
+### Added — nur zeigen, was für diesen Menschen gelten kann
+
+Eine frisch angemeldete Newsletter-Adresse ohne Community-Konto sah auf der
+Selbstbedienungs-Seite vier Community-Zeilen und eine interne CRM-Zeile, jede
+mit drei Kanälen: **fünfzehn Kästchen, von denen kein einziges je gewirkt
+hätte.** Der Grund war einfach — die Matrix listete jede registrierte Art mal
+jeden konfigurierten Kanal und fragte nie, ob das für den Betrachter überhaupt
+in Frage kommt.
+
+Eine Einstellung anzubieten, die nichts bewirken kann, ist schlimmer als keine:
+sie sieht aus wie eine Wahl.
+
+Zwei neue Angaben an einer Art, beide freiwillig und beide ohne Wirkung auf
+bestehende Typen:
+
+- **`appliesTo(Closure)`** — für wen die Art überhaupt in Frage kommt. Wer
+  nein sagt, sieht sie gar nicht; keine ausgegraute Zeile, keine Erklärung.
+  Eine Zeile, die nicht gelten kann, ist kein Hinweis, sondern Rauschen. Wirft
+  die Prüfung, gilt die Art als nicht anwendbar — im Zweifel verbergen.
+- **`supportedChannels(array)`** — welche Kanäle die Art überhaupt anbieten
+  darf. Der Unterschied zu `defaultChannels()`: dort steht, was voreingestellt
+  an ist, hier was zur Wahl steht.
+
+### Changed — ein nicht unterstützter Kanal ist auch beim Versand zu
+
+`allows()` prüft `supportedChannels` **vor** der `required`-Ausnahme. Sonst
+ließen genau die Arten, die niemand abschalten darf, den einen Weg offen, der
+nicht gemeint war — und es käme Post über einen Kanal, den auf der Seite
+niemand wählen konnte.
+
 ## 1.6.0 — 2026-08-12
 ### Changed
 

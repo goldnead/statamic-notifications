@@ -28,6 +28,41 @@ final class NotificationType
     /** Whether a recipient may switch this type off at all. */
     public bool $required = false;
 
+    /**
+     * Die Kanaele, die diese Art ueberhaupt verwenden kann. `null` heisst alle
+     * konfigurierten — die Vorgabe, damit ein bestehender Typ sich nicht
+     * aendert.
+     *
+     * Der Unterschied zu $defaultChannels: dort steht, was VOREINGESTELLT an
+     * ist, hier was ueberhaupt zur Wahl steht. Eine Tagesübersicht ergibt Sinn,
+     * wenn an einem Tag zehn Reaktionen zusammenkommen — fuer "dir wurde eine
+     * Aufgabe zugewiesen" ist sie sinnlos, denn die Aufgabe waere dann einen
+     * Tag alt. Ohne diese Angabe bot die Selbstbedienungs-Seite jeden Kanal
+     * fuer jede Art an und war ein Drittel groesser als noetig.
+     *
+     * @var array<int, string>|null
+     */
+    public ?array $supportedChannels = null;
+
+    /**
+     * Ob diese Art fuer diesen Empfaenger ueberhaupt in Frage kommt.
+     *
+     * `null` heisst ja, fuer alle — die Vorgabe. Wer es setzt, sagt: zeig das
+     * niemandem, der es nie bekommen kann.
+     *
+     * Der Grund ist eine echte Beobachtung: eine frisch angemeldete
+     * Newsletter-Adresse ohne Community-Konto sah vier Community-Zeilen und
+     * eine interne CRM-Zeile — fuenfzehn Kaestchen, von denen kein einziges je
+     * gewirkt haette. Eine Einstellung anzubieten, die nichts bewirken kann,
+     * ist schlimmer als keine: sie sieht aus wie eine Wahl.
+     *
+     * Die Frage kann nur das registrierende Paket beantworten, deshalb ein
+     * Closure und keine Liste von Rollen.
+     *
+     * @var Closure(mixed): bool|null
+     */
+    public ?Closure $appliesTo = null;
+
     public function __construct(public readonly string $handle) {}
 
     public static function make(string $handle): self
@@ -53,6 +88,38 @@ final class NotificationType
     public function defaultChannels(array $channels): self
     {
         $this->defaultChannels = $channels;
+
+        return $this;
+    }
+
+    /**
+     * Die Kanaele, die diese Art ueberhaupt anbieten darf.
+     *
+     * Alles, was nicht hier steht, taucht in der Selbstbedienungs-Seite nicht
+     * auf und wird beim Versand nicht bedient.
+     *
+     * @param  array<int, string>  $channels
+     */
+    public function supportedChannels(array $channels): self
+    {
+        $this->supportedChannels = $channels;
+
+        return $this;
+    }
+
+    /**
+     * Fuer wen diese Art ueberhaupt in Frage kommt.
+     *
+     * Bekommt den Empfaenger und antwortet ja oder nein. Wer nein sagt, sieht
+     * die Art gar nicht — keine ausgegraute Zeile, keine Erklaerung, warum sie
+     * nicht gilt. Eine Zeile, die nicht gelten kann, ist kein Hinweis, sondern
+     * Rauschen.
+     *
+     * @param  Closure(mixed): bool  $callback
+     */
+    public function appliesTo(Closure $callback): self
+    {
+        $this->appliesTo = $callback;
 
         return $this;
     }
