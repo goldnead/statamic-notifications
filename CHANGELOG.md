@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.8.0 — 2026-08-29
+
+### Neu: die Zahlen dieses Addons erscheinen in Insights
+
+`statamic-insights` ist ab 1.1.0 keine Umsatzauswertung mehr, sondern die Auswertungs-Schicht der
+Familie: jedes Addon meldet an, was es zählen kann, und bekommt dafür Zeitraum, Vergleich mit dem
+Vorzeitraum, Diagramm, Aufteilungen und zwei fertige Schirme.
+
+Die Kopplung ist in **beide** Richtungen freiwillig. Ohne Insights fehlt hier nichts; ohne dieses
+Addon fehlt dort nur seine Gruppe. `suggest`, nie `require`.
+
+Jede Zahl hält sich an die Hausregeln des Vertrags: **null ist nicht null** (eine Quote ohne Nenner
+hat keine Antwort und zeigt keine 0 %), `available()` entscheidet über die Existenz und nie über die
+Daten, Lücken im Verlauf füllt Insights und nicht die Kennzahl, und ein Filter, den eine Zahl nicht
+versteht, wird ignoriert statt zum Fehler.
+
+Vier Zahlen: verschickt, gelesen, Leserate, Zusammenfassungen.
+
+**Die Leserate ist nicht „Gelesen geteilt durch Verschickt".** In der Gelesen-Zahl stecken auch
+ältere Meldungen, die erst in diesem Zeitraum geöffnet wurden; die Rate misst dagegen die Kohorte
+des Zeitraums. Das steht in der Beschreibung, weil die zwei Kacheln nebeneinander sonst wie ein
+Rechenfehler aussehen.
+
+Die Zusammenfassungen rechnen auf einer zweiten Tabelle und erben die Marken-Bedingung mit.
+
+### Behoben: eine Zahl zählt nur noch die aktive Marke
+
+Beim Bauen der Anbindung bekam diese Frage in der Familie vier verschiedene Antworten, und auf einem
+Schirm nebeneinander ist das schlimmer als gar keine: eine Kachel zeigte den Umsatz dreier fremder
+Marken, während die daneben korrekt filterte. Die Regel steht jetzt einmal in
+`TableMetric::brandScoped()`, als Abschrift von `BrandScope::apply()`; hier wird nur noch die Spalte
+genannt, und Zahl, Diagramm und jede Aufteilung verengen gemeinsam.
+
+Ist keine Marke gewählt, liest die Kachel **0 und bleibt stehen**. Ein Leser versteht eine Null;
+eine verschwundene Kachel bemerkt er nicht.
+
 ## 1.7.0 — 2026-08-22
 
 ### Added — nur zeigen, was für diesen Menschen gelten kann
