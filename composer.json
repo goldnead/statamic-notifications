@@ -37,6 +37,7 @@
         "pestphp/pest-plugin-laravel": "^2.0|^3.0|^4.0"
     },
     "suggest": {
+        "goldnead/statamic-insights": "Report sent, read, read rate and digests on the shared Insights dashboard.",
         "goldnead/statamic-leadhub": "Enables the bundled CRM source (new leads, assignments, follow-up digests)."
     },
     "autoload": {

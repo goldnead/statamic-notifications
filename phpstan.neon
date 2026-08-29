@@ -14,3 +14,14 @@ parameters:
     # else. See the file for why it is a stub rather than a baseline entry.
     stubFiles:
         - .phpstan/addon-service-provider-stubs.php
+
+    # Das Analytics-Addon ist ein `suggest`, kein `require`: die Kennzahlen
+    # unter src/Integrations/Insights erweitern seinen Vertrag, und es liegt
+    # nicht in vendor/. Gelesen werden die Stellvertreter aus der Testsuite —
+    # dieselben Deklarationen, Byte fuer Byte —, damit die Kennzahlen gegen die
+    # echten Signaturen geprueft werden statt als unbekannte Klassen zu gelten.
+    # Gescannt, nicht analysiert: die Dateien sind kein Code, den dieses Paket
+    # ausliefert.
+    scanFiles:
+        - tests/Fakes/insights-contracts.php
+        - tests/Fakes/insights-table-metric.php

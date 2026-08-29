@@ -12,6 +12,10 @@ use Goldnead\Notifications\Contracts\SenderIdentityResolver;
 use Goldnead\Notifications\Digest\DigestBuilder;
 use Goldnead\Notifications\Digest\PendingItemRecipientDirectory;
 use Goldnead\Notifications\Digest\SourceRegistry;
+use Goldnead\Notifications\Integrations\Insights\Digests;
+use Goldnead\Notifications\Integrations\Insights\Read;
+use Goldnead\Notifications\Integrations\Insights\ReadRate;
+use Goldnead\Notifications\Integrations\Insights\Sent;
 use Goldnead\Notifications\Preferences\PreferenceResolver;
 use Goldnead\Notifications\Query\Scopes\Filters\NotificationType;
 use Goldnead\Notifications\Query\Scopes\Filters\ReadState;
@@ -22,10 +26,12 @@ use Goldnead\Notifications\Sending\BrandSenderIdentity;
 use Goldnead\Notifications\Sources\LeadHubSource;
 use Goldnead\Notifications\Support\AutomationRules;
 use Goldnead\Notifications\Types\TypeRegistry;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification as LaravelNotification;
 use Statamic\Facades\CP\Nav;
 use Statamic\Facades\Permission;
 use Statamic\Providers\AddonServiceProvider;
+use Throwable;
 
 class ServiceProvider extends AddonServiceProvider
 {
@@ -137,7 +143,8 @@ class ServiceProvider extends AddonServiceProvider
             ->registerNavigation()
             ->registerPermissions()
             ->registerBundledSources()
-            ->registerPublishables();
+            ->registerPublishables()
+            ->registerInsightsMetrics();
     }
 
     /**
@@ -206,6 +213,84 @@ class ServiceProvider extends AddonServiceProvider
                             ->label(__('notifications::cp.permission_digests')),
                     ]);
             });
+        });
+
+        return $this;
+    }
+
+    /**
+     * Die Handles, die dieses Addon beisteuert, und die Klassen dahinter.
+     *
+     * Beides, damit die Registry den Klassennamen ablegen kann, ohne ein Objekt
+     * zu bauen, nur um zu erfahren, wie es heisst. Den Handle zweimal zu
+     * schreiben ist der Preis dafuer und die guenstigere Haelfte des Tauschs:
+     * eine Installation mit zwanzig Addons wuerde sonst bei jedem Aufruf jede
+     * Kennzahl jedes Addons instanziieren, auch auf Seiten, die keine zeigen.
+     *
+     * Die Handles sind ab der Registrierung eingefroren — sie landen in
+     * gespeicherten Ansichten und in URLs. Einen umzubenennen ist ein Bruch.
+     *
+     * @var array<class-string, string>
+     */
+    protected const INSIGHTS_METRICS = [
+        Sent::class => 'notifications.sent',
+        Read::class => 'notifications.read',
+        ReadRate::class => 'notifications.read_rate',
+        Digests::class => 'notifications.digests',
+    ];
+
+    /**
+     * Die vier Betriebszahlen dem Analytics-Addon anbieten, falls es da ist.
+     *
+     * Aus einem `app->booted()`-Rueckruf und nicht direkt aus `bootAddon()`:
+     * die Container-Bindungen des Geschwisters entstehen erst, wenn dessen
+     * eigener Provider gebootet hat, und dieser hier kann vorher dran sein. Wer
+     * frueher registriert, registriert ins Leere — ohne Fehler, mit einem
+     * leeren Schirm als einzigem Hinweis, was die schlechteste Form dieses
+     * Fehlschlags ist.
+     *
+     * **Hier wirft nichts, nie.** Ein fehlendes, halb installiertes oder gerade
+     * aktualisiertes Analytics-Addon darf ein paar Kacheln kosten, niemals eine
+     * Benachrichtigung. Die drei Absicherungen sind je eine reale Spielart von
+     * „installiert, aber nicht ganz": die Klasse kann fehlen, der Container
+     * kann die Verwaltung nicht bauen, und eine aeltere Fassung des
+     * Geschwisters kann die Fassade ohne diese Methode haben.
+     *
+     * Die Kennzahl-Klassen nennen den fremden Vertrag in ihrem `extends`, was
+     * genau wegen der ersten Absicherung sicher ist: PHP laedt eine Klasse,
+     * wenn etwas sie anfasst, und nichts fasst diese an, solange die Fassade
+     * fehlt. Daher `suggest` in der composer.json und nicht `require` — dies
+     * ist ein Grundlagen-Addon, und ein Grundlagen-Addon schleppt kein
+     * Auswertungspaket mit.
+     */
+    protected function registerInsightsMetrics(): self
+    {
+        $this->app->booted(function (): void {
+            $facade = '\Goldnead\StatamicInsights\Facades\Insights';
+
+            if (! class_exists($facade)) {
+                return;
+            }
+
+            try {
+                $manager = $facade::getFacadeRoot();
+
+                // Am Objekt gefragt, nie an der Fassade: eine Fassade reicht
+                // ueber `__callStatic` weiter und deklariert nichts von dem,
+                // was sie weiterreicht — die Probe an der Fassade selbst ist
+                // immer falsch.
+                if (! is_object($manager) || ! method_exists($manager, 'registerMetric')) {
+                    return;
+                }
+
+                foreach (self::INSIGHTS_METRICS as $class => $handle) {
+                    $manager->registerMetric($class, $handle);
+                }
+            } catch (Throwable $e) {
+                Log::warning('statamic-notifications: the insights metrics could not be registered.', [
+                    'exception' => $e->getMessage(),
+                ]);
+            }
         });
 
         return $this;
