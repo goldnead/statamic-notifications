@@ -264,16 +264,37 @@ class InsightsMetricsTest extends TestCase
         }
     }
 
-    /** Der Provider bietet genau diese vier an, faul und mit Handle. */
+    /**
+     * Der Provider bietet genau diese vier an, faul und mit Handle.
+     *
+     * Gezaehlt wird, was aus **diesem** Paket kommt, und nicht, was insgesamt
+     * in der Sammelstelle liegt. Der Stellvertreter oben ist einer fuer alle:
+     * `getPackageProviders()` startet auch `Goldnead\Suppression`, und seit
+     * dessen v1.2.0 meldet die Sperrliste ihre eigenen zwei Zahlen an dieselbe
+     * Fassade. Die Zusicherung las bis dahin die ganze Sammelstelle und wurde
+     * am 05.09.2026 rot, ohne dass sich an diesem Addon etwas geaendert
+     * haette — sie behauptete Hoheit ueber eine Liste, die ihr nicht gehoert,
+     * und wuerde es beim naechsten Geschwister wieder tun.
+     *
+     * Streng bleibt sie trotzdem: genau diese vier, keine mehr und keine
+     * weniger, unter genau diesen Handles. Dass sie faul angemeldet sind, haelt
+     * der Stellvertreter selbst fest — er nimmt nichts an, was kein
+     * Klassenname mit Handle ist.
+     */
     #[Test]
     public function the_provider_offers_every_figure_to_the_sibling(): void
     {
+        $eigene = array_filter(
+            $this->insights->registered,
+            fn (string $klasse) => str_starts_with($klasse, 'Goldnead\\Notifications\\'),
+        );
+
         $this->assertSame([
             'notifications.sent' => Sent::class,
             'notifications.read' => Read::class,
             'notifications.read_rate' => ReadRate::class,
             'notifications.digests' => Digests::class,
-        ], $this->insights->registered);
+        ], $eigene);
     }
 
     // -- Ueber die Zeit -----------------------------------------------------
