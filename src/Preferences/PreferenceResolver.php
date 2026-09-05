@@ -2,9 +2,9 @@
 
 namespace Goldnead\Notifications\Preferences;
 
-use Goldnead\Notifications\Types\NotificationType;
 use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Models\NotificationPreference;
+use Goldnead\Notifications\Types\NotificationType;
 use Goldnead\Notifications\Types\TypeRegistry;
 
 /**

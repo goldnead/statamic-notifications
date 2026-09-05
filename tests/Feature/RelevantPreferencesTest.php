@@ -60,7 +60,9 @@ it('haelt eine kaputte Pruefung fuer ein Nein', function (): void {
     // niemand sehen soll. Im Zweifel verbergen, nicht zeigen.
     Notifications::registerType('community.mention', function ($type): void {
         $type->label('Erwähnung')
-            ->appliesTo(function (): bool { throw new RuntimeException('kaputt'); });
+            ->appliesTo(function (): bool {
+                throw new RuntimeException('kaputt');
+            });
     });
 
     $matrix = collect($this->preferences->matrixFor(Identity::user(1)));
