@@ -18,6 +18,15 @@ const props = defineProps({
     // { type, created_at, recipient, message, link, actor, dedupe_key, read_at, digested_at, data }
     notification: { type: Object, required: true },
     indexUrl: { type: String, required: true },
+
+    // Ob es die Snapshot-Schicht ueberhaupt gibt. Ist sie nicht installiert
+    // oder abgeschaltet, faellt das Mail-Panel weg statt zu behaupten, es sei
+    // nichts rausgegangen.
+    mailPreviewShown: { type: Boolean, default: false },
+
+    // Gesetzt heisst: fuer diese Benachrichtigung ging eine Mail raus, und
+    // unter dieser Adresse steht sie so, wie sie rausging.
+    mailPreviewUrl: { type: String, default: null },
 });
 
 const fields = computed(() => [
@@ -86,6 +95,24 @@ const payload = computed(() => JSON.stringify(props.notification.data ?? null, n
                         </TableRow>
                     </TableRows>
                 </Table>
+            </Card>
+        </Panel>
+
+        <!--
+            Was rausging, nicht die Vorlage von heute. Der Rahmen mit Betreff,
+            Absender und dem Hinweis, woher die eingesetzten Werte stammen,
+            kommt aus der Snapshot-Schicht und steht deshalb im iframe, nicht
+            hier daneben.
+        -->
+        <Panel v-if="mailPreviewShown" :heading="__('notifications::cp.detail_mail')">
+            <Card>
+                <iframe
+                    v-if="mailPreviewUrl"
+                    :src="mailPreviewUrl"
+                    :title="__('notifications::cp.detail_mail')"
+                    class="block w-full h-[600px] border-0"
+                />
+                <Text v-else :text="__('notifications::cp.detail_mail_none')" />
             </Card>
         </Panel>
 

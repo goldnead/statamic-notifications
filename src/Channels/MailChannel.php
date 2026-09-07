@@ -7,6 +7,7 @@ use Goldnead\Notifications\Contracts\Channel;
 use Goldnead\Notifications\Mail\NotificationMail;
 use Goldnead\Notifications\Models\NotificationItem;
 use Goldnead\Notifications\Sending\BrandMailer;
+use Goldnead\Notifications\Sending\SentSnapshot;
 use Goldnead\Notifications\Types\TypeRegistry;
 use Goldnead\Suppression\Contracts\Gate as SuppressionGate;
 use Goldnead\Suppression\Exceptions\SuppressionCheckFailed;
@@ -53,6 +54,12 @@ class MailChannel implements Channel
 
         $rendered = $this->types->get($item->type)->render($item);
 
+        // Was hier rausgeht, festgehalten — vor der Uebergabe an den Mailer, wie
+        // der Vertrag der Snapshot-Schicht es verlangt. Aufgezeichnet wird das
+        // Layout mit Platzhaltern, nie der Text dieses einen Empfaengers; siehe
+        // SentSnapshot. Der Zeiger auf die Zeile wird erst unten gesetzt.
+        $snapshotId = SentSnapshot::record($item, $rendered);
+
         // The brand comes off the row, not out of the ambient context. Today
         // the two agree — `NotificationManager` dispatches inside the brand it
         // just wrote — but "today they agree" is not a guarantee: a host that
@@ -65,6 +72,13 @@ class MailChannel implements Channel
             $recipient->name,
             new NotificationMail($item, $rendered),
         );
+
+        // Erst jetzt. Ein Zeiger, der vor dem Versand gesetzt wird, laesst eine
+        // Mail, die nie das Haus verliess, auf der Detailseite wie eine
+        // zugestellte aussehen.
+        if ($snapshotId !== null) {
+            $item->forceFill(['email_template_snapshot_id' => $snapshotId])->save();
+        }
     }
 
     protected function mailer(): BrandMailer

@@ -2,7 +2,9 @@
 
 namespace Goldnead\Notifications\Http\Controllers\Cp;
 
+use Goldnead\Notifications\Facades\Notifications;
 use Goldnead\Notifications\Models\NotificationItem;
+use Goldnead\Notifications\Sending\SentSnapshot;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -96,7 +98,42 @@ class NotificationController extends Controller
         return Inertia::render('notifications::Show', [
             'notification' => $this->detail($notification),
             'indexUrl' => cp_route('notifications.index'),
+
+            // Drei Zustaende, nicht zwei. Ohne installierte oder abgeschaltete
+            // Snapshot-Schicht faellt das Feld ganz weg — ein leeres Panel, das
+            // „keine Mail" behauptet, waere dort schlicht falsch. Mit Schicht
+            // und ohne Zeiger heisst es: hier ging keine Mail raus, was fuer
+            // in_app und jeden Kurznachrichten-Kanal der Normalfall ist.
+            'mailPreviewShown' => SentSnapshot::available(),
+            'mailPreviewUrl' => SentSnapshot::find($notification) === null
+                ? null
+                : cp_route('notifications.preview', ['id' => $notification->id]),
         ]);
+    }
+
+    /**
+     * Die versendete Mail, mit den Werten dieser Zeile eingesetzt.
+     *
+     * Eine eigene Seite und kein `previewUrl()` der Schicht, weil die neutrale
+     * Vorschau Beispieldaten zeigt und Adrians Frage lautet, was rausging. Die
+     * Werte kommen aus der Benachrichtigung selbst; gespeichert wird dabei
+     * nichts.
+     *
+     * Antwortet als vollstaendiges HTML-Dokument, weil es in einem `<iframe>`
+     * der Detailseite haengt: eine Mail bringt eigene `body`-Regeln mit und
+     * wuerde die CP-Seite umstylen, saesse sie direkt darin.
+     */
+    public function preview(int $id)
+    {
+        Gate::authorize('view notifications');
+
+        $notification = NotificationItem::query()->findOrFail($id);
+
+        $html = SentSnapshot::document($notification, Notifications::render($notification));
+
+        abort_if($html === null, 404);
+
+        return response($html)->header('Content-Type', 'text/html; charset=UTF-8');
     }
 
     /**

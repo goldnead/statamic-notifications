@@ -23,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $message
  * @property string|null $link
  * @property array|null $data
+ * @property int|null $email_template_snapshot_id Zeiger auf `email_template_snapshots` in statamic-email-templates. Gesetzt heisst: fuer diese Zeile ging eine E-Mail raus.
  * @property string|null $dedupe_key
  * @property Carbon|null $read_at
  * @property Carbon|null $digested_at

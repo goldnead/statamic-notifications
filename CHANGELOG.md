@@ -1,5 +1,44 @@
 # Changelog
 
+## Unveröffentlicht
+
+### Neu: die Detailseite zeigt die Mail, die rausging
+
+Bisher stand auf der Detailseite einer Benachrichtigung, wem was geschickt wurde — nicht, wie es
+beim Empfänger ankam. Jetzt hängt darunter die Mail selbst, mit den Werten dieser Zeile eingesetzt.
+
+Gespeichert wird dabei kein einziger Satz Empfängertext. Was in die gemeinsame Snapshot-Schicht
+(`email_template_snapshots` in `statamic-email-templates`) geht, ist das Mail-Layout mit
+`{{ title }}`, `{{ body }}` und `{{ link }}` als Platzhaltern — die Vorlage, so wie sie beim Versand
+stand, dazu Betreff und der Absender, unter dem wirklich gesendet wurde. Eingesetzt wird erst beim
+Ansehen, und das Ergebnis wird nicht abgelegt. Deshalb braucht diese Zeile keine Aufbewahrungsfrist
+und kein Löschkonzept.
+
+Eine neue Spalte `notification_items.email_template_snapshot_id` verweist auf die Fassung, die diese
+Zeile bekommen hat. Zehntausend Mails derselben Art teilen sich eine Snapshot-Zeile; wird das Layout
+geändert, entsteht eine neue und die alte bleibt stehen.
+
+Für Zeilen ohne Mail — `in_app` und jeder Kurznachrichten-Kanal, den ein Host registriert — wird
+nichts aufgezeichnet, und die Seite sagt das. Eine Kurznachricht hat kein Layout; ihre „Vorlage"
+wäre nichts als der Text an eine konkrete Person. Der steht ohnehin schon in der Zeile und wird dort
+angezeigt.
+
+Ohne installiertes oder abgeschaltetes `statamic-email-templates` fällt der Abschnitt weg.
+
+### Neu: Einstellungen im Control Panel
+
+Fünf Werte sind unter `Addon-Einstellungen` je Marke änderbar: der Hauptschalter, die Listenlänge,
+der Standard-Takt des Digests, die Adresse der Einstellungsseite und das Echtzeit-Signal. Was nicht
+angefasst wurde, folgt weiter `config/notifications.php`.
+
+Nicht auf der Seite: `cp.enabled` und `sources.leadhub` werden beim Booten gelesen und würden erst
+beim nächsten Deploy wirken; `channels` sind Klassennamen; `realtime.channel_prefix` ist Teil des
+Vertrags mit dem Client. Die Gruppentexte sagen das.
+
+Neues Recht: `manage notifications settings`. Die bestehenden Rechte bleiben unverändert.
+
+Braucht `goldnead/statamic-brand-context` ab 1.12.
+
 ## 1.8.0 — 2026-08-29
 
 ### Neu: die Zahlen dieses Addons erscheinen in Insights

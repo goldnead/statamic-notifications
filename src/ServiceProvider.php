@@ -2,6 +2,7 @@
 
 namespace Goldnead\Notifications;
 
+use Goldnead\BrandContext\Settings\SettingsRegistry;
 use Goldnead\Leadhub\Models\Contact;
 use Goldnead\Notifications\Channels\ChannelRegistry;
 use Goldnead\Notifications\Channels\LaravelChannelAdapter;
@@ -25,6 +26,7 @@ use Goldnead\Notifications\Sending\BrandMailer;
 use Goldnead\Notifications\Sending\BrandSenderIdentity;
 use Goldnead\Notifications\Sources\LeadHubSource;
 use Goldnead\Notifications\Support\AutomationRules;
+use Goldnead\Notifications\Support\Settings;
 use Goldnead\Notifications\Types\TypeRegistry;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification as LaravelNotification;
@@ -139,6 +141,14 @@ class ServiceProvider extends AddonServiceProvider
     {
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
+        // Die eigenen Einstellungen bei der gemeinsamen Schicht anmelden, die
+        // Speicher, Formular, Validierung und Config-Ueberschreibung selbst
+        // macht — siehe Support\Settings. Im Boot und nicht spaeter:
+        // brand-context wendet die Ueberschreibungen in einem
+        // `app->booted()`-Rueckruf an, und wer sich danach anmeldet, erreicht
+        // `config()` in diesem Prozess nicht mehr.
+        $this->app->make(SettingsRegistry::class)->register(Settings::class);
+
         $this->registerLaravelChannel()
             ->registerNavigation()
             ->registerPermissions()
@@ -212,6 +222,13 @@ class ServiceProvider extends AddonServiceProvider
                         Permission::make('manage notification digests')
                             ->label(__('notifications::cp.permission_digests')),
                     ]);
+
+                // Eigenstaendig und kein Kind von `view notifications`: die
+                // Einstellungsseite liegt in brand-context, nicht unter dem
+                // Inspektor, und wer sie pflegt, muss die Zeilen anderer Leute
+                // nicht lesen duerfen.
+                Permission::register('manage notifications settings')
+                    ->label(__('notifications::cp.permission_settings'));
             });
         });
 

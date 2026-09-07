@@ -16,11 +16,12 @@ const notification = {
     data: { thread_id: 7, url: 'https://example.com/a/b' },
 };
 
-function page(overrides = {}) {
+function page(overrides = {}, props = {}) {
     return mount(Show, {
         props: {
             notification: { ...notification, ...overrides },
             indexUrl: '/cp/notifications',
+            ...props,
         },
     });
 }
@@ -135,5 +136,38 @@ describe('a single notification', () => {
 
         expect(valueFor(wrapper, 'notifications::cp.field_message')).toBe('total {{ 2 + 2 }}');
         expect(visibleText(wrapper)).toContain('total {{ 2 + 2 }}');
+    });
+});
+
+/**
+ * Drei Zustände, nicht zwei. Ohne Snapshot-Schicht fehlt das Feld ganz — ein
+ * Panel, das dort „keine Mail" behauptet, wäre schlicht falsch.
+ */
+describe('die versendete Mail', () => {
+    const frame = (wrapper) => wrapper.find('iframe');
+
+    it('hängt die Mail in einen iframe, wenn eine rausging', () => {
+        const wrapper = page({}, {
+            mailPreviewShown: true,
+            mailPreviewUrl: '/cp/notifications/7/preview',
+        });
+
+        expect(frame(wrapper).exists()).toBe(true);
+        expect(frame(wrapper).attributes('src')).toBe('/cp/notifications/7/preview');
+    });
+
+    it('sagt es, wenn für diese Zeile keine Mail rausging', () => {
+        const wrapper = page({}, { mailPreviewShown: true, mailPreviewUrl: null });
+
+        expect(frame(wrapper).exists()).toBe(false);
+        expect(visibleText(wrapper)).toContain('notifications::cp.detail_mail_none');
+    });
+
+    it('lässt das Feld weg, wenn es keine Snapshot-Schicht gibt', () => {
+        const wrapper = page();
+
+        expect(frame(wrapper).exists()).toBe(false);
+        expect(visibleText(wrapper)).not.toContain('notifications::cp.detail_mail_none');
+        expect(visibleText(wrapper)).not.toContain('notifications::cp.detail_mail');
     });
 });
