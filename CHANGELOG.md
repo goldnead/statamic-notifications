@@ -1,6 +1,6 @@
 # Changelog
 
-## Unveröffentlicht
+## 1.9.0 — 2026-09-07
 
 ### Neu: die Detailseite zeigt die Mail, die rausging
 
@@ -35,9 +35,17 @@ Nicht auf der Seite: `cp.enabled` und `sources.leadhub` werden beim Booten geles
 beim nächsten Deploy wirken; `channels` sind Klassennamen; `realtime.channel_prefix` ist Teil des
 Vertrags mit dem Client. Die Gruppentexte sagen das.
 
-Neues Recht: `manage notifications settings`. Die bestehenden Rechte bleiben unverändert.
+Neues Recht: `manage notifications settings`. Es hat zunächst niemand, und bis es einer Rolle
+zugewiesen ist, bleibt der Abschnitt unsichtbar, auch für Benutzer, die an diesem Addon sonst
+alles dürfen. Die bestehenden Rechte bleiben unverändert.
 
-Braucht `goldnead/statamic-brand-context` ab 1.12.
+**Braucht `goldnead/statamic-brand-context` ab 1.13.** Ältere Fassungen tragen die Seite, wenden
+ihre Werte aber nicht verlässlich an. Auf einer Installation mit einer einzigen Marke wurden die
+Einstellungen der zuletzt angemeldeten Addons gar nicht auf die Config gelegt — beim Nachmessen
+im Playground am 07.09. war `notifications` eines davon: die Seite zeigte nach dem Neuladen den
+gespeicherten Wert, gelesen wurde die Paketvorgabe. Dazu löschte bis 1.12 ein zweites Speichern
+desselben Abschnitts die Überschreibung des ersten, ohne Meldung. Wer zwischen dem 06.09. und
+diesem Update Werte gesetzt hat, sieht nach dem Aktualisieren nach, ob sie noch dastehen.
 
 ## 1.8.0 — 2026-08-29
 
