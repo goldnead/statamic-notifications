@@ -166,6 +166,14 @@ Two things this does that the system it replaces did not:
   week** for as long as it stayed unread.
 - **No mail when there is nothing to report.** A window with no new items and no
   new contributions from any source is skipped, not sent empty.
+- **And no mail that repeats the last one.** A source reporting a state — three
+  open tasks — has content every week and news only sometimes. Each digest is
+  fingerprinted by what it says (items by id, sources by their sentence; never
+  the rendered HTML, or a template change would post one more mail to
+  everybody) and compared against the last digest actually delivered to that
+  person. Identical means it does not go, and the run says so. The fingerprint
+  advances only on a delivered mail, so a failed send cannot swallow the next
+  real one.
 
 Scheduling is left to the host — register the command in your own scheduler so
 the send window matches your audience.

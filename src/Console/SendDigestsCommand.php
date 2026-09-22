@@ -38,6 +38,14 @@ class SendDigestsCommand extends Command
         PreferenceResolver $preferences,
         RecipientDirectory $directory,
     ): int {
+        // Reset, because the counter outlives the run otherwise.
+        //
+        // One process per invocation on a cron, so this never bit there — but
+        // anything that calls the command twice in one process (a scheduler
+        // running daily and then weekly, a test) carried the first run's
+        // failure into the second and reported a healthy run as broken.
+        $this->lost = 0;
+
         $frequency = (string) $this->option('frequency');
 
         if (! in_array($frequency, ['daily', 'weekly'], true)) {
@@ -130,6 +138,7 @@ class SendDigestsCommand extends Command
 
         $sent = 0;
         $skippedEmpty = 0;
+        $skippedUnchanged = 0;
         $skippedAlreadySent = 0;
         $skippedSuppressed = 0;
         $lost = 0;
@@ -162,6 +171,28 @@ class SendDigestsCommand extends Command
 
             if ($builder->isEmpty($collected)) {
                 $skippedEmpty++;
+
+                continue;
+            }
+
+            // The second gate, and the one that answers "only when there is
+            // something to report".
+            //
+            // Empty is not the only way to have nothing to say. A source that
+            // reports a state — three open tasks, four upcoming events — has
+            // content every week and news only sometimes, and the window check
+            // cannot tell those apart because every window is new. So the
+            // digest is compared against what this person was last actually
+            // sent, and a mail that would repeat it word for word does not go.
+            //
+            // Here rather than in the sources: it holds for every source,
+            // including the ones this package has never heard of, and it cannot
+            // make a source's contribution disappear from a mail that does go
+            // out — which narrowing each source's own query could.
+            $fingerprint = $builder->fingerprint($collected);
+
+            if ($builder->repeatsLastDelivered($recipient, $frequency, $fingerprint)) {
+                $skippedUnchanged++;
 
                 continue;
             }
@@ -201,16 +232,23 @@ class SendDigestsCommand extends Command
 
                     continue;
                 }
+
+                // Only now, and only here. A fingerprint written before the
+                // send would let a run that stamped and delivered nothing
+                // silence the next real mail for a whole cadence.
+                $builder->markDelivered($run, $fingerprint);
             }
 
             $sent++;
         }
 
         $this->components->info(sprintf(
-            '%s %d digest(s). Skipped: %d empty, %d already sent for this window, %d suppressed.',
+            '%s %d digest(s). Skipped: %d empty, %d unchanged since the last one, '
+            .'%d already sent for this window, %d suppressed.',
             $dryRun ? 'Would send' : 'Sent',
             $sent,
             $skippedEmpty,
+            $skippedUnchanged,
             $skippedAlreadySent,
             $skippedSuppressed,
         ));

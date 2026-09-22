@@ -3,13 +3,17 @@
 use Goldnead\BrandContext\Facades\BrandContext;
 use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Contracts\DigestSource;
+use Goldnead\Notifications\Contracts\SenderIdentityResolver;
 use Goldnead\Notifications\Digest\DigestBuilder;
 use Goldnead\Notifications\Facades\Notifications;
 use Goldnead\Notifications\Mail\DigestMail;
 use Goldnead\Notifications\Models\NotificationDigestRun;
 use Goldnead\Notifications\Models\NotificationItem;
+use Goldnead\Notifications\Sending\BrandMailer;
+use Illuminate\Mail\Mailable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\View;
 
 beforeEach(function (): void {
     $this->builder = app(DigestBuilder::class);
@@ -18,6 +22,36 @@ beforeEach(function (): void {
         $type->label('Antwort')->defaultChannels(['in_app', 'digest']);
     });
 });
+
+/**
+ * A source that reports a state rather than an event: whatever it is told to
+ * say, it says on every run, for as long as it is registered. That is not a
+ * broken source — open tasks and upcoming events are genuinely like that — and
+ * it is exactly what used to force an unchanging digest out every week.
+ *
+ * Passing null makes it fall silent, which is how "something fell away" is
+ * staged below.
+ */
+function sourceSays(string $handle, ?string $line): void
+{
+    Notifications::registerSource($handle, fn () => new class($line) implements DigestSource
+    {
+        public function __construct(protected ?string $line) {}
+
+        public function collect(Identity $recipient, Carbon $since, Carbon $until): array
+        {
+            return $this->line === null ? [] : ['line' => $this->line];
+        }
+    });
+}
+
+function runDigest(object $test, ?string $now = null): void
+{
+    $test->artisan('notifications:send-digests', [
+        '--frequency' => 'weekly',
+        '--now' => $now ?? now()->toDateTimeString(),
+    ])->assertSuccessful();
+}
 
 function notifyAt(string $when, string $message = 'x'): NotificationItem
 {
@@ -147,6 +181,111 @@ it('keeps a contribution whole, so a published view can still lay it out', funct
 
     expect($extras['community']['line'])->toContain('Offene Singstunde')
         ->and($extras['community']['events'])->toHaveCount(1);
+});
+
+it('does not send a digest that would repeat the last one word for word', function (): void {
+    // Adrian's case, in one test. A source reporting a permanent state has
+    // content every week and news only sometimes; the window check cannot tell
+    // those apart, because every window is new.
+    Mail::fake();
+    everyRunReaches(Identity::user(7, 'chef@example.com'));
+    sourceSays('tasks', 'Du hast 3 offene Aufgaben.');
+
+    runDigest($this);
+    Mail::assertSentCount(1);
+
+    // A week on, nothing has happened. The tasks are still open.
+    runDigest($this, now()->addWeek()->toDateTimeString());
+    Mail::assertSentCount(1);
+});
+
+it('sends again as soon as there is more to report', function (): void {
+    Mail::fake();
+    everyRunReaches(Identity::user(7, 'chef@example.com'));
+    sourceSays('tasks', 'Du hast 3 offene Aufgaben.');
+
+    runDigest($this);
+    Mail::assertSentCount(1);
+
+    sourceSays('tasks', 'Du hast 4 offene Aufgaben.');
+
+    runDigest($this, now()->addWeek()->toDateTimeString());
+    Mail::assertSentCount(2);
+});
+
+it('sends again when something falls away, because less is a change too', function (): void {
+    Mail::fake();
+    everyRunReaches(Identity::user(7, 'chef@example.com'));
+    sourceSays('tasks', 'Du hast 3 offene Aufgaben.');
+    sourceSays('leadhub', 'Ein Follow-up ist überfällig.');
+
+    runDigest($this);
+    Mail::assertSentCount(1);
+
+    // The follow-up got done. That source has nothing to add any more, and the
+    // digest that remains is a different digest.
+    sourceSays('leadhub', null);
+
+    runDigest($this, now()->addWeek()->toDateTimeString());
+    Mail::assertSentCount(2);
+});
+
+it('fingerprints what the digest says, not how the template says it', function (): void {
+    // If the fingerprint were taken over the rendered mail, changing a colour
+    // would post one more empty-handed digest to every recipient there is.
+    sourceSays('tasks', 'Du hast 3 offene Aufgaben.');
+    notifyAt(now()->subDay()->toDateTimeString());
+
+    $collected = $this->builder->collect(Identity::user(1), 'weekly');
+    $before = $this->builder->fingerprint($collected);
+    $htmlBefore = (new DigestMail(Identity::user(1), $collected, 'weekly'))->render();
+
+    $dir = sys_get_temp_dir().'/notifications-view-'.uniqid();
+    mkdir($dir.'/mail', 0777, true);
+    file_put_contents($dir.'/mail/digest.blade.php', '<p>eine vollkommen andere Vorlage</p>');
+
+    View::prependNamespace('notifications', $dir);
+    View::getFinder()->flush();
+
+    $htmlAfter = (new DigestMail(Identity::user(1), $collected, 'weekly'))->render();
+
+    expect($htmlAfter)->not->toBe($htmlBefore)
+        ->and($this->builder->fingerprint($collected))->toBe($before);
+
+    @unlink($dir.'/mail/digest.blade.php');
+    @rmdir($dir.'/mail');
+    @rmdir($dir);
+});
+
+it('does not let a run that delivered nothing swallow the next real mail', function (): void {
+    Mail::fake();
+    everyRunReaches(Identity::user(7, 'chef@example.com'));
+    sourceSays('tasks', 'Du hast 3 offene Aufgaben.');
+
+    // A sender identity that goes unusable between the pre-flight check and the
+    // send itself: the run is recorded, the mail never leaves.
+    app()->instance(BrandMailer::class, new class(app(SenderIdentityResolver::class)) extends BrandMailer
+    {
+        public function maySend(?int $brandId): bool
+        {
+            return true;
+        }
+
+        public function send(?int $brandId, string $to, ?string $toName, Mailable $mailable): bool
+        {
+            return false;
+        }
+    });
+
+    $this->artisan('notifications:send-digests', ['--frequency' => 'weekly'])->assertFailed();
+    Mail::assertNothingSent();
+
+    app()->forgetInstance(BrandMailer::class);
+
+    // Nothing has changed in the meantime — and it still has to arrive, because
+    // nobody has read it yet.
+    runDigest($this, now()->addWeek()->toDateTimeString());
+    Mail::assertSentCount(1);
 });
 
 it('sends a digest mail to a recipient with pending items', function (): void {

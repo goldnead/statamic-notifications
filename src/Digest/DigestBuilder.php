@@ -7,6 +7,7 @@ use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Models\NotificationDigestRun;
 use Goldnead\Notifications\Models\NotificationItem;
 use Goldnead\Notifications\Preferences\PreferenceResolver;
+use Goldnead\Notifications\Support\UniquenessKey;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -122,6 +123,18 @@ class DigestBuilder
      */
     protected function lastReported(Identity $recipient, string $frequency): ?Carbon
     {
+        $end = $this->runsFor($recipient, $frequency)->max('window_end');
+
+        return $end === null ? null : Carbon::parse($end);
+    }
+
+    /**
+     * This recipient's runs at this cadence.
+     *
+     * @return Builder<NotificationDigestRun>
+     */
+    protected function runsFor(Identity $recipient, string $frequency): Builder
+    {
         $query = $this->runs()->where('frequency', $frequency);
 
         if ($recipient->userId === null) {
@@ -136,9 +149,74 @@ class DigestBuilder
             $query->where('contact_uuid', $recipient->contactUuid);
         }
 
-        $end = $query->max('window_end');
+        return $query;
+    }
 
-        return $end === null ? null : Carbon::parse($end);
+    /**
+     * A fingerprint of what this digest says.
+     *
+     * Over the content, never over the rendered mail: a hash of the HTML would
+     * tie the guarantee below to the template, so changing a colour would post
+     * one more empty-handed mail to everybody.
+     *
+     * Items go in by id rather than by their wording, and that is the careful
+     * half. Two separate mentions read the same ("hat dich erwähnt.") and are
+     * not the same news; collapsing them would silence a real notification,
+     * which is a worse failure than the one being fixed. Ids cannot collide, so
+     * a digest carrying any item at all is always new. What the fingerprint
+     * therefore really guards is the case it was built for: nothing but sources,
+     * saying the same thing they said last week.
+     *
+     * Sources go in by their sentence, which is all they promise to keep stable.
+     */
+    public function fingerprint(array $collected): string
+    {
+        $items = $collected['items']
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id)
+            ->sort()
+            ->values()
+            ->implode(',');
+
+        $extras = collect($collected['extras'])
+            ->map(fn (array $extra): string => (string) ($extra['line'] ?? ''))
+            ->sortKeys()
+            ->map(fn (string $line, string $handle): string => $handle.'='.$line)
+            ->implode('|');
+
+        return UniquenessKey::of([$items, $extras]);
+    }
+
+    /**
+     * Would this digest say exactly what the last delivered one said?
+     *
+     * The second gate, and the one Adrian's complaint is really about. A window
+     * is new every week, so the idempotency check waves through a mail that
+     * repeats itself word for word; an open task is still open, and reporting it
+     * again is not news. Compared against the last digest that actually left,
+     * so a recorded-but-undelivered run cannot swallow the next real one.
+     */
+    public function repeatsLastDelivered(Identity $recipient, string $frequency, string $fingerprint): bool
+    {
+        $last = $this->runsFor($recipient, $frequency)
+            ->whereNotNull('content_fingerprint')
+            ->orderByDesc('window_end')
+            ->value('content_fingerprint');
+
+        return $last !== null && $last === $fingerprint;
+    }
+
+    /**
+     * Writes the fingerprint onto a run whose mail really went out.
+     *
+     * Separate from {@see markSent()} on purpose. That one runs before the send,
+     * because a crash afterwards must not risk a second mail. This one runs
+     * after, because a run that stamped and then failed to deliver must not
+     * count as "they have already read this".
+     */
+    public function markDelivered(NotificationDigestRun $run, string $fingerprint): void
+    {
+        $run->forceFill(['content_fingerprint' => $fingerprint])->save();
     }
 
     /**

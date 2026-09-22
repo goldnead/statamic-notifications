@@ -3,7 +3,6 @@
 use Goldnead\BrandContext\Facades\BrandContext;
 use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Contracts\DigestSource;
-use Goldnead\Notifications\Contracts\RecipientDirectory;
 use Goldnead\Notifications\Digest\DigestBuilder;
 use Goldnead\Notifications\Facades\Notifications;
 use Goldnead\Notifications\Mail\DigestMail;
@@ -43,27 +42,6 @@ function seedFollowup(string $owner = '5', array $followup = [], ?int $brandId =
     ], $followup));
 
     return $contactId;
-}
-
-/**
- * Makes the digest command walk one fixed recipient.
- *
- * The default directory derives its list from pending notification items, so it
- * cannot reach anybody whose only content comes from a source — which is
- * exactly the install that reported this bug. A host that wants source-only
- * digests binds its own directory; this is that host.
- */
-function everyRunReaches(Identity $recipient): void
-{
-    app()->instance(RecipientDirectory::class, new class($recipient) implements RecipientDirectory
-    {
-        public function __construct(protected Identity $recipient) {}
-
-        public function digestRecipients(string $frequency): iterable
-        {
-            return [$this->recipient];
-        }
-    });
 }
 
 it('contributes overdue follow-ups to the digest', function (): void {

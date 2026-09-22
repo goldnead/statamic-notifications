@@ -35,6 +35,38 @@ original bug back with it.
 The placeholder line also stops arguing with the rest of the mail: "Nothing new this time" now
 appears only when the sources have nothing either.
 
+### Fixed: and no second mail that says exactly what the first one said
+
+Empty is not the only way to have nothing to report. A source that answers with a *state* — three
+open tasks, four upcoming events — has content every week and news only sometimes, and the window
+check cannot tell those apart, because every window is new. The result is a mail that arrives every
+Monday listing the same three tasks. It has content. It reports nothing.
+
+So a digest is now also compared against what this recipient was last actually sent. Word for word
+the same, and it does not go. The run reports it: `Skipped: 0 empty, 1 unchanged since the last
+one, …`.
+
+The comparison is a SHA-256 over what the digest *says* — the items it carries and the sentence
+each source wrote — never over the rendered mail. A hash of the HTML would tie the guarantee to the
+template, and changing a colour would post one more empty-handed digest to everybody.
+
+Items go in by id, not by their wording. Two separate mentions read identically ("hat dich
+erwähnt.") and are not the same news; collapsing them would silence a real notification, which is
+worse than the bug being fixed here. So a digest that carries any item at all is always new, and
+what this gate really catches is the case it was built for: sources alone, repeating themselves.
+
+The fingerprint is written **only after a mail has really been delivered**. A run that was recorded
+and then failed to send leaves it untouched, so a broken sender identity cannot swallow the next
+real digest on top of everything else it already costs.
+
+New column `notification_digest_runs.content_fingerprint`, nullable, filled from the moment a
+digest is delivered. `php artisan migrate` adds it; installs that never send a digest never fill
+it.
+
+Also fixed on the way past: `notifications:send-digests` kept its count of undelivered digests
+between invocations. One process per run on a cron, so it never showed there — but anything calling
+the command twice in one process reported the second, healthy run as failed.
+
 **A published view keeps working.** `$extras` is still keyed by source handle and still holds
 whatever that source returned, so a copy of
 `resources/views/vendor/notifications/mail/digest.blade.php` that reaches into the payload — the
