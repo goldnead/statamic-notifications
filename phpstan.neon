@@ -25,3 +25,21 @@ parameters:
     scanFiles:
         - tests/Fakes/insights-contracts.php
         - tests/Fakes/insights-table-metric.php
+
+    # Die view-string-Ausnahme unten greift nur ab Larastan 3.12. Die CI loest
+    # frisch auf und bekommt sie; eine Arbeitskopie mit 3.11 in der Lockdatei
+    # nicht, und wuerde dann an der UNGENUTZTEN Ausnahme scheitern. Gleiche
+    # Einstellung, gleicher Grund, wie in statamic-marketing und statamic-payments.
+    reportUnmatchedIgnoredErrors: false
+
+    ignoreErrors:
+        # Larastan prueft ab 3.12 eine view-string, indem es den View-Finder
+        # fragt, ob die Vorlage existiert. Dieses Addon meldet seinen
+        # `notifications::`-Namensraum erst beim Booten ueber loadViewsFrom()
+        # an, und das laeuft in der Analyse nie. Ein Befund ueber die
+        # Analyseumgebung, keiner ueber eine View. Dieselbe Ausnahme wie in
+        # statamic-marketing, statamic-automations, statamic-lead-magnets und
+        # statamic-payments.
+        -
+            identifier: argument.type
+            message: '#expects view-string(\|null)?, string given#'
