@@ -7,6 +7,7 @@ use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Models\NotificationDigestRun;
 use Goldnead\Notifications\Models\NotificationItem;
 use Goldnead\Notifications\Preferences\PreferenceResolver;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -48,7 +49,7 @@ class DigestBuilder
      * Everything that belongs in this recipient's digest for this window:
      * persisted notifications plus whatever registered sources contribute.
      *
-     * @return array{items: Collection, extras: array<string, mixed>}
+     * @return array{items: Collection, extras: array<string, array{line: string}>}
      */
     public function collect(Identity $recipient, string $frequency, ?Carbon $now = null): array
     {
@@ -69,12 +70,75 @@ class DigestBuilder
             fn (NotificationItem $item) => $this->preferences->allows($recipient, $item->type, 'digest')
         );
 
+        // Sources are asked "what is new since this person last heard from us",
+        // not "what does the window cover". The difference is the whole bug:
+        // an item carries its own `digested_at`, a source's subject matter does
+        // not. An open follow-up is still open next week, so a source that gets
+        // the plain window start reports it again, and again — the digest is
+        // never empty and goes out every week with nothing in it.
+        $since = $this->lastReported($recipient, $frequency) ?? $window['start'];
+
         return [
             'items' => $items->values(),
             'skipped' => $skipped->values(),
-            'extras' => $this->sources->collect($recipient, $window['start'], $window['end']),
+            'extras' => $this->sources->collect($recipient, $since, $window['end']),
             'window' => $window,
         ];
+    }
+
+    /**
+     * Run rows of the brand this send belongs to.
+     *
+     * Both readers below go through here so the brand filter cannot drift
+     * apart between them. Written out by hand rather than left to the global
+     * scope because a console run has no current brand, and a scope that fails
+     * closed would answer "never sent" for everybody.
+     *
+     * @return Builder<NotificationDigestRun>
+     */
+    protected function runs(): Builder
+    {
+        return NotificationDigestRun::query()->where(
+            'brand_id',
+            BrandContext::hasCurrent() ? BrandContext::currentId() : BrandContext::defaultId(),
+        );
+    }
+
+    /**
+     * End of the last window this recipient was actually sent, or null when
+     * they have never been sent one.
+     *
+     * Read from the run rows rather than from a new column: the send record
+     * already exists and is already the thing that says "they have been told".
+     * A contact recipient is compared by value, so a NULL user_id is matched
+     * rather than compared against a NULL that equals nothing.
+     *
+     * Known limit, older than this method and inherited with open eyes: the run
+     * row is written before the mail leaves, so a run that stamped and then
+     * failed to deliver still counts as "reported". Items have carried that
+     * same risk for as long as `digested_at` has existed — the send command
+     * names it out loud and ends non-zero — and sources now share it. Whatever
+     * became overdue inside such a window is passed over on the next run.
+     */
+    protected function lastReported(Identity $recipient, string $frequency): ?Carbon
+    {
+        $query = $this->runs()->where('frequency', $frequency);
+
+        if ($recipient->userId === null) {
+            $query->whereNull('user_id');
+        } else {
+            $query->where('user_id', $recipient->userId);
+        }
+
+        if ($recipient->contactUuid === null) {
+            $query->whereNull('contact_uuid');
+        } else {
+            $query->where('contact_uuid', $recipient->contactUuid);
+        }
+
+        $end = $query->max('window_end');
+
+        return $end === null ? null : Carbon::parse($end);
     }
 
     /**
@@ -89,8 +153,7 @@ class DigestBuilder
         // and the constraint can never disagree — and so a contact recipient,
         // whose user_id is NULL, is compared by value rather than by a NULL
         // that equals nothing.
-        $run = NotificationDigestRun::query()
-            ->where('brand_id', BrandContext::hasCurrent() ? BrandContext::currentId() : BrandContext::defaultId())
+        $run = $this->runs()
             ->where('uniqueness_key', NotificationDigestRun::uniquenessKeyFor(
                 $recipient->userId,
                 $recipient->contactUuid,

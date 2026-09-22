@@ -3,11 +3,14 @@
 use Goldnead\BrandContext\Facades\BrandContext;
 use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Contracts\DigestSource;
+use Goldnead\Notifications\Contracts\RecipientDirectory;
 use Goldnead\Notifications\Digest\DigestBuilder;
 use Goldnead\Notifications\Facades\Notifications;
+use Goldnead\Notifications\Mail\DigestMail;
 use Goldnead\Notifications\Sources\LeadHubSource;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 beforeEach(function (): void {
@@ -42,6 +45,27 @@ function seedFollowup(string $owner = '5', array $followup = [], ?int $brandId =
     return $contactId;
 }
 
+/**
+ * Makes the digest command walk one fixed recipient.
+ *
+ * The default directory derives its list from pending notification items, so it
+ * cannot reach anybody whose only content comes from a source — which is
+ * exactly the install that reported this bug. A host that wants source-only
+ * digests binds its own directory; this is that host.
+ */
+function everyRunReaches(Identity $recipient): void
+{
+    app()->instance(RecipientDirectory::class, new class($recipient) implements RecipientDirectory
+    {
+        public function __construct(protected Identity $recipient) {}
+
+        public function digestRecipients(string $frequency): iterable
+        {
+            return [$this->recipient];
+        }
+    });
+}
+
 it('contributes overdue follow-ups to the digest', function (): void {
     seedFollowup();
     seedFollowup();
@@ -49,7 +73,10 @@ it('contributes overdue follow-ups to the digest', function (): void {
     $collected = $this->builder->collect(Identity::user(5), 'weekly');
 
     expect($collected['extras'])->toHaveKey('leadhub')
-        ->and($collected['extras']['leadhub']['overdue_followups'])->toBe(2);
+        ->and($collected['extras']['leadhub']['line'])->toBeString()
+        ->and($collected['extras']['leadhub']['line'])->toContain('2')
+        // What arrives in the mail is what the source wrote, not a dump of it.
+        ->and($collected['extras']['leadhub']['line'])->not->toContain('{');
 });
 
 it('ignores completed follow-ups', function (): void {
@@ -64,15 +91,64 @@ it('does not attribute another user\'s follow-ups', function (): void {
     expect($this->builder->collect(Identity::user(5), 'weekly')['extras'])->toBe([]);
 });
 
-it('makes a digest worth sending even without any notification', function (): void {
-    // The reason a source exists at all: nobody was ever *notified* about a
-    // task that is still open, but the weekly mail should mention it.
+it('makes a digest worth sending once, and not again', function (): void {
+    // Turned around on 22.09.2026. Until then this test held that a source
+    // "makes a digest worth sending even without any notification" — full stop,
+    // for as long as the follow-up stayed open. That expectation *was* the bug:
+    // an open follow-up is still overdue next week, so `extras` was never empty,
+    // `isEmpty()` never said "empty", and the weekly mail went out forever with
+    // nothing in it. The first half of the sentence still holds — a source alone
+    // does carry a digest — the second half is new: only while it is news.
     seedFollowup();
 
     $collected = $this->builder->collect(Identity::user(5), 'weekly');
 
     expect($collected['items'])->toHaveCount(0)
         ->and($this->builder->isEmpty($collected))->toBeFalse();
+
+    $this->builder->markSent(Identity::user(5), 'weekly', $collected);
+
+    expect($this->builder->isEmpty($this->builder->collect(Identity::user(5), 'weekly')))->toBeTrue();
+});
+
+it('does not mail the same overdue follow-up on the next run', function (): void {
+    Mail::fake();
+    everyRunReaches(Identity::user(5, 'lead@example.com'));
+
+    // Nothing but the follow-up: no notification item anywhere. This is the
+    // shape Adrian reported — a weekly mail that arrives with no content.
+    seedFollowup();
+
+    $this->artisan('notifications:send-digests', [
+        '--frequency' => 'weekly',
+        '--now' => now()->toDateTimeString(),
+    ])->assertSuccessful();
+
+    Mail::assertSentCount(1);
+
+    // And what it says is a sentence, not a payload. A brace in the rendered
+    // body means the old `<pre>{{ json_encode($payload) }}` block is back.
+    Mail::assertSent(DigestMail::class, fn (DigestMail $mail) => ! str_contains($mail->render(), '{'));
+
+    // The next run, with nothing changed in between. The follow-up is still
+    // open and still overdue, and must not be reported a second time.
+    //
+    // Both offsets below are load-bearing, and each one hides the bug if it is
+    // wrong:
+    //
+    //   - Not the same second, or the two runs would share a window start and
+    //     the idempotency guard would refuse the second send on its own.
+    //   - A day, not a week: the second window has to still *contain* the
+    //     follow-up (due yesterday). Move it a week out and the follow-up falls
+    //     out of the window by date alone, so the run stays silent whether or
+    //     not `lastReported()` is doing its work — the test would then prove
+    //     nothing about the mechanism it exists for.
+    $this->artisan('notifications:send-digests', [
+        '--frequency' => 'weekly',
+        '--now' => now()->addDay()->toDateTimeString(),
+    ])->assertSuccessful();
+
+    Mail::assertSentCount(1);
 });
 
 it('never counts another brand\'s follow-ups into a digest', function (): void {
@@ -87,13 +163,13 @@ it('never counts another brand\'s follow-ups into a digest', function (): void {
     // global brand scope — the filter has to hold on its own.
     BrandContext::setCurrent($brandA);
 
-    expect($this->builder->collect(Identity::user(5), 'weekly')['extras']['leadhub']['overdue_followups'])->toBe(1);
+    expect($this->builder->collect(Identity::user(5), 'weekly')['extras']['leadhub']['line'])->toContain('1');
 });
 
 it('survives a source that throws', function (): void {
     Notifications::registerSource('broken', fn () => new class implements DigestSource
     {
-        public function collect(Identity $recipient, Carbon $s, Carbon $e): array
+        public function collect(Identity $recipient, Carbon $since, Carbon $until): array
         {
             throw new RuntimeException('boom');
         }

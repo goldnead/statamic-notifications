@@ -164,6 +164,8 @@ Two things this does that the system it replaces did not:
   (brand, recipient, frequency, window start), and every collected item is
   stamped `digested_at`. Without this an unread item went out **again every
   week** for as long as it stayed unread.
+- **No mail when there is nothing to report.** A window with no new items and no
+  new contributions from any source is skipped, not sent empty.
 
 Scheduling is left to the host — register the command in your own scheduler so
 the send window matches your audience.
@@ -198,9 +200,31 @@ Other addons contribute things nobody was notified about:
 Notifications::registerSource('community', CommunityDigestSource::class);
 ```
 
-A source answers "what should this person also see for this window?" — open
-follow-ups, upcoming events. A failing source is reported and skipped: one
-addon's broken query must not silence everybody's weekly mail.
+```php
+public function collect(Identity $recipient, Carbon $since, Carbon $until): array
+{
+    return $count === 0 ? [] : ['line' => "{$count} open replies."];
+}
+```
+
+A source answers "what is **new** for this person since they were last told
+anything?" — open follow-ups, upcoming events. Two rules come with that, and
+both of them are the shape of a bug that shipped:
+
+- **`$since` is the end of the last digest this recipient actually received,**
+  not the start of the window. A source's subject matter carries no stamp of its
+  own: an open follow-up is still open next week. Report everything still open
+  and you report the same thing every run — the digest is never empty and goes
+  out every week with nothing in it.
+- **Put one finished sentence under `line`.** The shipped mail prints it as
+  written, and a source with no `line` contributes nothing at all: not a row in
+  the body, not a reason to send. Until 1.10.0 the template received whatever a
+  source returned and printed it as JSON. The rest of the array survives — a
+  published view can still lay the payload out richly — it is simply not what
+  this package prints.
+
+A failing source is reported and skipped: one addon's broken query must not
+silence everybody's weekly mail.
 
 A LeadHub source ships bundled and attaches only when that addon is installed.
 

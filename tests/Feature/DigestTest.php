@@ -2,11 +2,13 @@
 
 use Goldnead\BrandContext\Facades\BrandContext;
 use Goldnead\IdentityContracts\Identity;
+use Goldnead\Notifications\Contracts\DigestSource;
 use Goldnead\Notifications\Digest\DigestBuilder;
 use Goldnead\Notifications\Facades\Notifications;
 use Goldnead\Notifications\Mail\DigestMail;
 use Goldnead\Notifications\Models\NotificationDigestRun;
 use Goldnead\Notifications\Models\NotificationItem;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 
 beforeEach(function (): void {
@@ -82,6 +84,69 @@ it('sends nothing when there is nothing in the window', function (): void {
     $this->artisan('notifications:send-digests', ['--frequency' => 'weekly'])->assertSuccessful();
 
     Mail::assertNothingSent();
+});
+
+it('loads a source written against the older shape, and lets it contribute nothing', function (): void {
+    // Two failures in one test, and the first one is the reason this file
+    // declares the class at all.
+    //
+    // 1. A source out in the field returns `array`. Narrowing the contract's
+    //    return type to the sentence itself would make this very declaration a
+    //    compile-time fatal — "Declaration of … must be compatible with …" —
+    //    and no try/catch in SourceRegistry could catch it, because the process
+    //    dies while the class is being loaded. `notifications:send-digests`
+    //    would stop dead for everybody, in every brand. If this test ever fails
+    //    to load rather than failing an assertion, that is what happened.
+    // 2. It answers with data and no `line`. It therefore contributes nothing:
+    //    not to the mail, and not to the question of whether to send one. Any
+    //    non-empty answer used to count as content, which is precisely how a
+    //    source reporting a permanent state kept an empty digest going out.
+    Notifications::registerSource('old-style', fn () => new class implements DigestSource
+    {
+        public function collect(Identity $recipient, Carbon $windowStart, Carbon $windowEnd): array
+        {
+            return ['overdue_followups' => 2];
+        }
+    });
+
+    Mail::fake();
+
+    // Reachable for the run, with nothing inside the window.
+    notifyAt(now()->subDays(30)->toDateTimeString());
+
+    $collected = $this->builder->collect(Identity::user(1), 'weekly');
+
+    expect($collected['extras'])->toBe([])
+        ->and($this->builder->isEmpty($collected))->toBeTrue();
+
+    $this->artisan('notifications:send-digests', ['--frequency' => 'weekly'])->assertSuccessful();
+
+    Mail::assertNothingSent();
+});
+
+it('keeps a contribution whole, so a published view can still lay it out', function (): void {
+    // `line` decides whether a source contributes at all and is the only thing
+    // the shipped template prints. It is not all a contribution is allowed to
+    // carry: adriangoldner.com publishes its own digest view and builds an
+    // event list out of the payload. Reducing a contribution to its sentence
+    // would make that section disappear from the mail without a word.
+    Notifications::registerSource('community', fn () => new class implements DigestSource
+    {
+        public function collect(Identity $recipient, Carbon $since, Carbon $until): array
+        {
+            return [
+                'line' => 'Der nächste Termin: Offene Singstunde.',
+                'events' => [['title' => 'Offene Singstunde']],
+            ];
+        }
+    });
+
+    notifyAt(now()->subDay()->toDateTimeString());
+
+    $extras = $this->builder->collect(Identity::user(1), 'weekly')['extras'];
+
+    expect($extras['community']['line'])->toContain('Offene Singstunde')
+        ->and($extras['community']['events'])->toHaveCount(1);
 });
 
 it('sends a digest mail to a recipient with pending items', function (): void {

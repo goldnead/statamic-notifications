@@ -43,8 +43,13 @@ class SourceRegistry
         return $this;
     }
 
-    /** @return array<string, mixed> */
-    public function collect(Identity $recipient, Carbon $windowStart, Carbon $windowEnd): array
+    /**
+     * The contribution of every source that has something new to say, keyed by
+     * handle. Each one carries at least `line`.
+     *
+     * @return array<string, array{line: string}>
+     */
+    public function collect(Identity $recipient, Carbon $since, Carbon $until): array
     {
         $collected = [];
 
@@ -56,9 +61,26 @@ class SourceRegistry
                     continue;
                 }
 
-                $contribution = $resolved->collect($recipient, $windowStart, $windowEnd);
+                $contribution = $resolved->collect($recipient, $since, $until);
+                $line = $contribution['line'] ?? null;
 
-                if ($contribution !== []) {
+                // The gate for every source, including the ones this package
+                // has never heard of. Without a sentence a source contributes
+                // nothing at all — not a line in the body, and not a reason to
+                // send. Before 1.10.0 any non-empty return value counted as
+                // content, which is how a source reporting a permanent state
+                // kept an otherwise empty digest going out week after week.
+                //
+                // Whitespace is nothing too, or a blank row would keep the
+                // digest alive in a quieter costume.
+                //
+                // What passes the gate is kept whole, not reduced to the
+                // sentence. The shipped template prints `line` and nothing
+                // else, but a host that published its own view reads the rest
+                // — adriangoldner.com renders the event list out of it — and
+                // handing that view a bare string would make its section
+                // vanish without a word.
+                if (is_string($line) && trim($line) !== '') {
                     $collected[$handle] = $contribution;
                 }
             } catch (\Throwable $e) {

@@ -1,5 +1,47 @@
 # Changelog
 
+## 1.10.0 — 2026-09-22
+
+### Fixed: the weekly digest arrived every week with nothing in it
+
+The guard against an empty digest existed and sat in the right place, and it still let every
+single weekly mail through. It asked whether there were any items *and* whether any source had
+contributed something — and the bundled LeadHub source contributed the same thing forever. It
+counted follow-ups that were overdue and not yet completed, which is a state, not an event. One
+forgotten follow-up was therefore news again on Monday, and the Monday after that. The digest was
+never empty, so it was never skipped, and what arrived was a mail whose body said "Nothing new
+this time" and then printed `{"leadhub":{"overdue_followups":2}}` in a `<pre>` block underneath.
+
+Both halves are fixed, because either one alone still leaves a broken mail. A source is now handed
+the end of the last digest this recipient actually received, and counts only what became overdue
+since then — read from the existing `notification_digest_runs` rows, so there is no new column and
+no migration. And what reaches the mail is a finished sentence under a new `line` key, so the
+template has something to print rather than something to encode.
+
+**Anything without a `line` now contributes nothing** — not a row in the body, and not a reason to
+send the digest at all. That is the general form of the fix and the part that matters most: a
+source this package has never heard of can no longer force an empty mail out of the door by
+reporting a permanent state. It is also what keeps the change safe. `DigestSource::collect()` still
+returns `array` and still takes the same three arguments, so a source written against the older
+shape keeps loading and keeps running. It simply stops contributing until it says something in
+words. Narrowing the return type instead would have been a compile-time fatal in every
+implementation in the field, unreachable by any `try`/`catch` here, and it would have taken the
+whole digest run down with it.
+
+Second argument names what it always should have: `$since`, the end of the last digest, not the
+start of the window. A source that ignores it and reports everything currently open brings the
+original bug back with it.
+
+The placeholder line also stops arguing with the rest of the mail: "Nothing new this time" now
+appears only when the sources have nothing either.
+
+**A published view keeps working.** `$extras` is still keyed by source handle and still holds
+whatever that source returned, so a copy of
+`resources/views/vendor/notifications/mail/digest.blade.php` that reaches into the payload — the
+way adriangoldner.com builds its event list — needs no change at all. Only the shipped fallback
+was rewritten, from the `json_encode()` block to the source's own sentence. If your copy still
+holds that block, `{{ $extra['line'] }}` replaces it.
+
 ## 1.9.0 — 2026-09-07
 
 ### New: the detail page shows the mail that went out

@@ -37,7 +37,10 @@ class LeadHubSource implements DigestSource
         });
     }
 
-    public function collect(Identity $recipient, Carbon $windowStart, Carbon $windowEnd): array
+    /**
+     * @return array{line?: string}
+     */
+    public function collect(Identity $recipient, Carbon $since, Carbon $until): array
     {
         if ($recipient->userId === null || ! $this->tableExists('leadhub_followups')) {
             return [];
@@ -49,7 +52,12 @@ class LeadHubSource implements DigestSource
             ->join('leadhub_contacts', 'leadhub_contacts.id', '=', 'leadhub_followups.contact_id')
             ->where('leadhub_contacts.assigned_to', $recipient->userId)
             ->whereNull('leadhub_followups.completed_at')
-            ->where('leadhub_followups.due_at', '<', $windowEnd);
+            // Newly overdue only. A follow-up that fell due before the last
+            // digest was already reported in it and is not news a second time,
+            // however open it still is. Without this lower bound a single
+            // forgotten follow-up keeps the weekly mail going out forever.
+            ->where('leadhub_followups.due_at', '>=', $since)
+            ->where('leadhub_followups.due_at', '<', $until);
 
         // Going through the query builder bypasses LeadHub's global brand scope,
         // so the brand filter has to be applied by hand. Without it this source
@@ -64,7 +72,10 @@ class LeadHubSource implements DigestSource
             return [];
         }
 
-        return ['overdue_followups' => $overdue];
+        // A sentence under `line`, because it goes into a mail a person reads.
+        // The template used to receive the count and had nothing to do with it
+        // but print it as JSON.
+        return ['line' => trans_choice('notifications::mail.leadhub_overdue_followups', $overdue, ['count' => $overdue])];
     }
 
     protected function tableExists(string $table): bool

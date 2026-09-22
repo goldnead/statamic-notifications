@@ -16,13 +16,20 @@
                 @endif
             </div>
         @empty
-            <p style="color:#a1a1aa;">{{ __('notifications::mail.digest_empty') }}</p>
+            {{-- Only when the sources have nothing either. "Nothing new this
+                 time" above a list of things is how this mail used to read. --}}
+            @if (empty($extras))
+                <p style="color:#a1a1aa;">{{ __('notifications::mail.digest_empty') }}</p>
+            @endif
         @endforelse
 
-        @foreach ($extras as $source => $payload)
+        {{-- Each source hands over its own finished sentence under `line`, and
+             that is all this view prints. Whatever else a contribution carries
+             is still there for a published view to lay out richly; this one
+             used to print all of it through json_encode() in a <pre> block. --}}
+        @foreach ($extras as $extra)
             <div style="padding:12px 0;border-bottom:1px solid #e4e4e7;">
-                <p style="margin:0;font-size:13px;color:#71717a;">{{ $source }}</p>
-                <pre style="margin:4px 0 0;font-size:12px;color:#3f3f46;white-space:pre-wrap;">{{ json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
+                <p style="margin:0;color:#18181b;">{{ $extra['line'] }}</p>
             </div>
         @endforeach
 
