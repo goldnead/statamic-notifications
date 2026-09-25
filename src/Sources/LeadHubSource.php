@@ -8,6 +8,7 @@ use Goldnead\Notifications\Contracts\DigestSource;
 use Goldnead\Notifications\NotificationManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Statamic\Facades\User;
 
 /**
  * Bundled source for `goldnead/statamic-leadhub`, registered only when that
@@ -28,13 +29,33 @@ class LeadHubSource implements DigestSource
     {
         $notifications->registerType('crm.lead_assigned', function ($type): void {
             $type->label('Lead zugewiesen')
-                ->defaultChannels(['in_app', 'mail']);
+                ->defaultChannels(['in_app', 'mail'])
+                ->appliesTo(fn (Identity $recipient): bool => self::isStaff($recipient));
         });
 
         $notifications->registerType('crm.followup_due', function ($type): void {
             $type->label('Follow-up fällig')
-                ->defaultChannels(['in_app', 'digest']);
+                ->defaultChannels(['in_app', 'digest'])
+                ->appliesTo(fn (Identity $recipient): bool => self::isStaff($recipient));
         });
+    }
+
+    /**
+     * Internal CRM types reach people on the team, not contacts. "Has an
+     * account" is not that line: on a site where every subscriber has one
+     * (ChoirLive), the preference page offered them "Lead zugewiesen". The
+     * line is whether the user may view LeadHub. Only the preference matrix
+     * reads this; sending is unchanged.
+     */
+    public static function isStaff(Identity $recipient): bool
+    {
+        if ($recipient->userId === null) {
+            return false;
+        }
+
+        $user = User::find($recipient->userId);
+
+        return $user !== null && ($user->isSuper() || $user->hasPermission('view leadhub'));
     }
 
     /**
