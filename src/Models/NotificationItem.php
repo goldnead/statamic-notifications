@@ -6,6 +6,7 @@ use Goldnead\BrandContext\Concerns\HasBrand;
 use Goldnead\IdentityContracts\Identity;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -66,6 +67,16 @@ class NotificationItem extends Model
             id: $this->actor_id,
             name: $this->actor_name,
         );
+    }
+
+    /**
+     * The deferred per-channel sends this item owes (or owed). Erased with
+     * the item — a delivery without its notification is a promise without a
+     * fact.
+     */
+    public function deliveries(): HasMany
+    {
+        return $this->hasMany(NotificationDelivery::class, 'notification_item_id');
     }
 
     public function isRead(): bool

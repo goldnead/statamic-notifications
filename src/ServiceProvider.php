@@ -6,8 +6,10 @@ use Goldnead\BrandContext\Settings\SettingsRegistry;
 use Goldnead\Leadhub\Models\Contact;
 use Goldnead\Notifications\Channels\ChannelRegistry;
 use Goldnead\Notifications\Channels\LaravelChannelAdapter;
+use Goldnead\Notifications\Console\DispatchPendingCommand;
 use Goldnead\Notifications\Console\SendDigestsCommand;
 use Goldnead\Notifications\Console\UniquenessIntegrityCommand;
+use Goldnead\Notifications\Contracts\DeferredRecipientResolver;
 use Goldnead\Notifications\Contracts\RecipientDirectory;
 use Goldnead\Notifications\Contracts\SenderIdentityResolver;
 use Goldnead\Notifications\Digest\DigestBuilder;
@@ -24,6 +26,8 @@ use Goldnead\Notifications\Query\Scopes\Filters\Recipient;
 use Goldnead\Notifications\Realtime\BroadcastAdapter;
 use Goldnead\Notifications\Sending\BrandMailer;
 use Goldnead\Notifications\Sending\BrandSenderIdentity;
+use Goldnead\Notifications\Sending\DeferredDelivery;
+use Goldnead\Notifications\Sending\StatamicDeferredRecipientResolver;
 use Goldnead\Notifications\Sources\LeadHubSource;
 use Goldnead\Notifications\Support\AutomationRules;
 use Goldnead\Notifications\Support\Settings;
@@ -44,6 +48,7 @@ class ServiceProvider extends AddonServiceProvider
     protected $commands = [
         SendDigestsCommand::class,
         UniquenessIntegrityCommand::class,
+        DispatchPendingCommand::class,
     ];
 
     protected $scopes = [
@@ -124,6 +129,18 @@ class ServiceProvider extends AddonServiceProvider
         $this->app->singleton(DigestBuilder::class, fn ($app) => new DigestBuilder(
             $app->make(SourceRegistry::class),
             $app->make(PreferenceResolver::class),
+        ));
+
+        // Who a deferred send actually goes to, resolved at dispatch time and
+        // never from the stored item. The shipped resolver reads the current
+        // Statamic user; a host with claim permissions or additional record
+        // types rebinds the contract, not the class.
+        $this->app->bind(DeferredRecipientResolver::class, StatamicDeferredRecipientResolver::class);
+
+        $this->app->singleton(DeferredDelivery::class, fn ($app) => new DeferredDelivery(
+            $app->make(ChannelRegistry::class),
+            $app->make(PreferenceResolver::class),
+            $app->make(DeferredRecipientResolver::class),
         ));
 
         $this->app->bind(RecipientDirectory::class, PendingItemRecipientDirectory::class);
