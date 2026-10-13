@@ -99,6 +99,13 @@ class DeferredDelivery
                 fn (): array => $this->dispatchOne($delivery, $item),
             );
 
+            // An empty outcome means the row was not ours to send (another
+            // worker took it, or the addon was switched off mid-run); only
+            // rows this run actually handled count as claimed.
+            if ($outcome !== []) {
+                $counts['claimed'] += 1;
+            }
+
             foreach ($outcome as $bucket => $count) {
                 $counts[$bucket] += $count;
             }
