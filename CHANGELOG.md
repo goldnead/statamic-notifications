@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.11.0 — 2026-10-15
+
+### Added: deferred delivery queue
+
+- `Notifications::notifyDeferred()` writes the notification and one `notification_deliveries` row per channel in a single transaction; `php artisan notifications:dispatch-pending` sends them later, with retry and exponential backoff (`notifications.deferred.max_attempts`, `backoff_seconds`). The addon schedules nothing; the host runs the command.
+- Only channels implementing `DeferredChannel` (in-app and mail) can carry a deferred row; recipients are resolved at send time through `DeferredRecipientResolver`. Outcomes are accepted, skipped, retry, cancelled or failed.
+- `dispatchPending` counts a row as claimed once the dispatcher took it under its lock.
+- New migration `notification_deliveries`.
+
 ## 1.10.1 — 2026-09-25
 
 ### Fixed
