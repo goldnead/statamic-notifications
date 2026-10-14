@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Facade;
 
 /**
  * @method static NotificationItem|null notify(mixed $recipient, string $type, array $attributes = [])
+ * @method static NotificationItem|null notifyDeferred(mixed $recipient, string $type, array $attributes = [])
  * @method static Collection notifyMany(iterable $recipients, string $type, array $attributes = [])
  * @method static void markRead(NotificationItem|int $item)
  * @method static int markAllRead(mixed $recipient)

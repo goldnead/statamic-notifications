@@ -33,6 +33,34 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Deferred delivery
+    |--------------------------------------------------------------------------
+    |
+    | `Notifications::notifyDeferred()` writes the notification and one row per
+    | channel into `notification_deliveries`, inside a single transaction; the
+    | sends happen when `notifications:dispatch-pending` runs. Only channels
+    | whose implementation can report an outcome (see DeferredChannel) may
+    | carry a deferred row — a channel that cannot say what happened is never
+    | recorded, and never counted as accepted.
+    |
+    | Nothing here is scheduled by the addon. The host runs the command at its
+    | own cadence, like the digest command, and keeps each run bounded.
+    |
+    */
+
+    'deferred' => [
+        'channels' => ['in_app', 'mail'],
+
+        // Total failed attempts per delivery row before it is marked failed.
+        'max_attempts' => env('NOTIFICATIONS_DEFERRED_MAX_ATTEMPTS', 5),
+
+        // Backoff base in seconds. The delay after the nth failed attempt is
+        // base × 2^(n-1).
+        'backoff_seconds' => env('NOTIFICATIONS_DEFERRED_BACKOFF', 60),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Digest
     |--------------------------------------------------------------------------
     |
