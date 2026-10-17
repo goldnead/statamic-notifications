@@ -2,12 +2,14 @@
 
 namespace Goldnead\Notifications\Sending;
 
+use Goldnead\Notifications\Contracts\DeferredChannel;
+
 /**
  * What one deferred send attempt produced.
  *
  * A channel that participates in deferred delivery has to be able to *say*
  * what happened — the legacy `Channel::send(): void` cannot, which is exactly
- * why a channel without {@see \Goldnead\Notifications\Contracts\DeferredChannel}
+ * why a channel without {@see DeferredChannel}
  * never gets a delivery row and is never counted as accepted.
  *
  * The three statuses, and what the dispatcher does with them:
