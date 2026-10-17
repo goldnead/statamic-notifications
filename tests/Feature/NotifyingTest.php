@@ -95,6 +95,8 @@ it('lists newest first and honours the limit', function (): void {
 });
 
 it('never lets a store failure escape into the caller', function (): void {
+    // The deliveries table references the items; MySQL refuses to drop the parent first.
+    Schema::dropIfExists('notification_deliveries');
     Schema::drop('notification_items');
 
     expect(Notifications::notify(Identity::user(1), 'community.mention'))->toBeNull();
