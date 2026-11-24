@@ -229,14 +229,16 @@ class DeferredDelivery
 
         if ($terminal) {
             // The only trace a dead delivery leaves besides its row: without it a broken sender
-            // identity or a suppression lookup that stays down kills every mail unseen.
-            Log::error('notifications: deferred delivery failed for good', [
+            // identity or a suppression lookup that stays down kills every mail unseen. After the
+            // commit, so a rolled-back attempt (deadlock) is not logged as dead and then tried again.
+            $context = [
                 'delivery_id' => $row->getKey(),
                 'notification_item_id' => $row->notification_item_id,
                 'channel' => $row->channel,
                 'outcome_code' => $outcomeCode,
                 'attempts' => $attempts,
-            ]);
+            ];
+            DB::afterCommit(fn () => Log::error('notifications: deferred delivery failed for good', $context));
         }
 
         return $this->finish(

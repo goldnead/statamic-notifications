@@ -70,3 +70,16 @@ it('stays green when every row was accepted', function (): void {
     expect(Artisan::call('notifications:dispatch-pending'))->toBe(0);
     Log::shouldNotHaveReceived('error');
 });
+
+it('stays green and quiet while a failing row still has attempts left', function (): void {
+    bindReachableResolver();
+    Notifications::notifyDeferred(Identity::user(1, 'a@example.com'), 'community.mention');
+    breakTheChannel();
+    config(['notifications.deferred.max_attempts' => 3]);
+    Log::spy();
+
+    expect(Artisan::call('notifications:dispatch-pending'))->toBe(0)
+        ->and(NotificationDelivery::query()->where('status', NotificationDelivery::STATUS_RETRY)->count())->toBeGreaterThan(0);
+    // report() of the transport exception logs an error of its own; only the dead-delivery line must be absent.
+    Log::shouldNotHaveReceived('error', [Mockery::on(fn ($m) => str_contains((string) $m, 'failed for good')), Mockery::any()]);
+});
