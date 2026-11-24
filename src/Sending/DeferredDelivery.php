@@ -12,6 +12,7 @@ use Goldnead\Notifications\Preferences\PreferenceResolver;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -225,6 +226,18 @@ class DeferredDelivery
     {
         $attempts = (int) $row->attempts + 1;
         $terminal = $attempts >= $this->maxAttempts();
+
+        if ($terminal) {
+            // The only trace a dead delivery leaves besides its row: without it a broken sender
+            // identity or a suppression lookup that stays down kills every mail unseen.
+            Log::error('notifications: deferred delivery failed for good', [
+                'delivery_id' => $row->getKey(),
+                'notification_item_id' => $row->notification_item_id,
+                'channel' => $row->channel,
+                'outcome_code' => $outcomeCode,
+                'attempts' => $attempts,
+            ]);
+        }
 
         return $this->finish(
             $row,
