@@ -416,5 +416,5 @@ it('does not abort the run when the transport throws, and reports the lost diges
 
     $this->artisan('notifications:send-digests', ['--frequency' => 'weekly'])->assertFailed();
 
-    Log::shouldHaveReceived('error')->atLeast()->once();
+    Log::shouldHaveReceived('error')->withArgs(fn ($m) => str_contains((string) $m, 'transport failed'))->atLeast()->once();
 });

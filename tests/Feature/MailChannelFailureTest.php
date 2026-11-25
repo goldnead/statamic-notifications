@@ -41,6 +41,10 @@ beforeEach(function (): void {
     app()->forgetInstance(DeferredDelivery::class);
 });
 
+afterEach(function (): void {
+    NotificationItem::flushEventListeners();
+});
+
 it('wiederholt keine Mail, die schon rausging, wenn nur der Zeiger nicht gespeichert werden kann', function (): void {
     Mail::fake();
     Notifications::notifyDeferred(Identity::user(1, 'a@example.com'), 'community.mention');
@@ -58,7 +62,7 @@ it('wiederholt keine Mail, die schon rausging, wenn nur der Zeiger nicht gespeic
     expect($rows)->toBeGreaterThan(0)
         ->and($counts['accepted'])->toBe($rows);
     Mail::assertSentCount($rows);
-    Log::shouldHaveReceived('error')->atLeast()->once();
+    Log::shouldHaveReceived('error')->withArgs(fn ($m) => str_contains((string) $m, 'snapshot pointer'))->atLeast()->once();
 });
 
 it('loggt einen Fehler, wenn der Mailer die Sofort-Mail ablehnt', function (): void {
@@ -78,5 +82,5 @@ it('loggt einen Fehler, wenn der Mailer die Sofort-Mail ablehnt', function (): v
 
     Notifications::notify(Identity::user(1, 'a@example.com'), 'community.mention');
 
-    Log::shouldHaveReceived('error')->atLeast()->once();
+    Log::shouldHaveReceived('error')->withArgs(fn ($m) => str_contains((string) $m, 'immediate mail was not sent'))->atLeast()->once();
 });

@@ -13,6 +13,7 @@ use Goldnead\Notifications\Sending\SentSnapshot;
 use Goldnead\Notifications\Types\TypeRegistry;
 use Goldnead\Suppression\Contracts\Gate as SuppressionGate;
 use Goldnead\Suppression\Exceptions\SuppressionCheckFailed;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -157,9 +158,16 @@ class MailChannel implements Channel, DeferredChannel
         // mehrfach. Also loggen und trotzdem als angenommen melden.
         if ($snapshotId !== null) {
             try {
-                $item->forceFill(['email_template_snapshot_id' => $snapshotId])->save();
+                // Eigene (Savepoint-)Transaktion: dispatchPending haelt eine
+                // aeussere offen, und auf Postgres macht ein fehlgeschlagenes
+                // Statement darin sonst die ganze Transaktion unbrauchbar,
+                // sodass die Zeile doch nicht als angenommen verbucht wird.
+                DB::transaction(
+                    fn () => $item->forceFill(['email_template_snapshot_id' => $snapshotId])->save()
+                );
             } catch (\Throwable $e) {
-                report($e);
+                // Das Modell nicht mit einer ungespeicherten Aenderung zurueckgeben.
+                $item->syncOriginal();
                 Log::error(
                     'Notifications: mail went out but the snapshot pointer could not be saved; '
                     .'the delivery counts as accepted so the mail is not sent again.',

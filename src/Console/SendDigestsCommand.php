@@ -234,7 +234,6 @@ class SendDigestsCommand extends Command
                     // A transport error for one recipient must not end the run
                     // for everyone after them. Same accounting as a refused
                     // send: stamped, counted as lost, reported at the end.
-                    report($e);
                     Log::error('Notifications digest: transport failed for one recipient; the run continues.', [
                         'brand_id' => $brandId,
                         'frequency' => $frequency,
@@ -273,7 +272,7 @@ class SendDigestsCommand extends Command
         if ($lost > 0) {
             $this->components->error(sprintf(
                 '%d digest(s) were marked as sent but could not be delivered: the sender identity became '
-                .'unusable mid-run. Those items will not resurface.',
+                .'unusable or the transport failed mid-run (see log). Those items will not resurface.',
                 $lost,
             ));
 
