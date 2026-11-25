@@ -6,6 +6,7 @@ use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Models\NotificationPreference;
 use Goldnead\Notifications\Types\NotificationType;
 use Goldnead\Notifications\Types\TypeRegistry;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Decides whether a given person wants a given type on a given channel.
@@ -164,7 +165,12 @@ class PreferenceResolver
 
         try {
             return (bool) ($definition->appliesTo)($recipient);
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            Log::warning('notifications: an appliesTo check threw, the type is treated as not applicable.', [
+                'type' => $definition->handle,
+                'exception' => $e::class,
+            ]);
+
             return false;
         }
     }

@@ -6,6 +6,7 @@ use Closure;
 use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Contracts\DigestSource;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 
 /**
  * `Notifications::registerSource('community', CommunityDigestSource::class)`.
@@ -84,6 +85,12 @@ class SourceRegistry
                     $collected[$handle] = $contribution;
                 }
             } catch (\Throwable $e) {
+                // The digest goes out without this section and looks complete.
+                Log::warning('notifications: a digest source threw, the digest goes out without its section.', [
+                    'source' => $handle,
+                    'exception' => $e::class,
+                ]);
+
                 report($e);
             }
         }

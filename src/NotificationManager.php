@@ -19,6 +19,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * The single entry point: notify(), read state, registration of types, channels
@@ -270,7 +271,15 @@ class NotificationManager
                 return $this->findDuplicate($row);
             }
 
-            // Never let a notification failure escape into the caller.
+            // Never let a notification failure escape into the caller. The
+            // same null also means "switched off" or "nobody to notify", so
+            // the log is the only place that says this one was lost.
+            Log::error('notifications: the notification could not be stored.', [
+                'type' => $type,
+                'dedupe_key' => $row['dedupe_key'],
+                'exception' => $e::class,
+            ]);
+
             report($e);
 
             return null;
