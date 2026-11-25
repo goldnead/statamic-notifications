@@ -3,10 +3,11 @@
 use Goldnead\IdentityContracts\Identity;
 use Goldnead\Notifications\Digest\SourceRegistry;
 use Goldnead\Notifications\Facades\Notifications;
+use Goldnead\Notifications\Models\NotificationItem;
 use Goldnead\Notifications\Preferences\PreferenceResolver;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Failures that vanished into report() or a bare catch: the log now names
@@ -15,9 +16,15 @@ use Illuminate\Support\Facades\Schema;
  */
 it('logs type and dedupe key when a notification cannot be stored', function (): void {
     Log::spy();
-    Schema::drop('notification_items');
+    // A store failure that is not a unique violation, without touching the schema (MySQL
+    // refuses to drop a table with a foreign key, and DDL would outlive the test).
+    NotificationItem::creating(fn () => throw new QueryException('testing', 'insert into notification_items', [], new RuntimeException('disk full')));
 
-    $item = Notifications::notify(Identity::user(5, 'a@example.com'), 'community.reply', ['dedupe_key' => 'reply:7']);
+    try {
+        $item = Notifications::notify(Identity::user(5, 'a@example.com'), 'community.reply', ['dedupe_key' => 'reply:7']);
+    } finally {
+        NotificationItem::flushEventListeners();
+    }
 
     expect($item)->toBeNull();
 
