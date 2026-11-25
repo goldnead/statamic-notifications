@@ -12,6 +12,7 @@ use Goldnead\Notifications\Models\NotificationItem;
 use Goldnead\Notifications\Sending\BrandMailer;
 use Illuminate\Mail\Mailable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\View;
 
@@ -392,4 +393,28 @@ it('can be restricted to a single brand', function (): void {
 
     $this->artisan('notifications:send-digests', ['--frequency' => 'weekly', '--brand' => 'brand-a'])->assertSuccessful();
     Mail::assertSent(DigestMail::class, 1);
+});
+
+it('does not abort the run when the transport throws, and reports the lost digest', function (): void {
+    Mail::fake();
+    everyRunReaches(Identity::user(7, 'chef@example.com'));
+    sourceSays('tasks', 'Du hast 3 offene Aufgaben.');
+
+    app()->instance(BrandMailer::class, new class(app(SenderIdentityResolver::class)) extends BrandMailer
+    {
+        public function maySend(?int $brandId): bool
+        {
+            return true;
+        }
+
+        public function send(?int $brandId, string $to, ?string $toName, Mailable $mailable): bool
+        {
+            throw new RuntimeException('smtp down');
+        }
+    });
+    Log::spy();
+
+    $this->artisan('notifications:send-digests', ['--frequency' => 'weekly'])->assertFailed();
+
+    Log::shouldHaveReceived('error')->withArgs(fn ($m) => str_contains((string) $m, 'transport failed'))->atLeast()->once();
 });

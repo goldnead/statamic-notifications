@@ -14,6 +14,7 @@ use Goldnead\Suppression\Contracts\Gate as SuppressionGate;
 use Goldnead\Suppression\Exceptions\SuppressionCheckFailed;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 
 /**
  * One process, every brand, in sequence — which is exactly the shape in which
@@ -222,12 +223,27 @@ class SendDigestsCommand extends Command
                 // differently over time. The items are already stamped by then,
                 // so nothing can be undone — but a run that stamped a week of
                 // items and delivered nothing must not report success.
-                if (! $mailer->send(
-                    $brandId,
-                    $recipient->email,
-                    $recipient->name,
-                    new DigestMail($recipient, $collected, $frequency),
-                )) {
+                try {
+                    $delivered = $mailer->send(
+                        $brandId,
+                        $recipient->email,
+                        $recipient->name,
+                        new DigestMail($recipient, $collected, $frequency),
+                    );
+                } catch (\Throwable $e) {
+                    // A transport error for one recipient must not end the run
+                    // for everyone after them. Same accounting as a refused
+                    // send: stamped, counted as lost, reported at the end.
+                    Log::error('Notifications digest: transport failed for one recipient; the run continues.', [
+                        'brand_id' => $brandId,
+                        'frequency' => $frequency,
+                        'exception' => $e::class,
+                        'message' => $e->getMessage(),
+                    ]);
+                    $delivered = false;
+                }
+
+                if (! $delivered) {
                     $lost++;
 
                     continue;
@@ -256,7 +272,7 @@ class SendDigestsCommand extends Command
         if ($lost > 0) {
             $this->components->error(sprintf(
                 '%d digest(s) were marked as sent but could not be delivered: the sender identity became '
-                .'unusable mid-run. Those items will not resurface.',
+                .'unusable or the transport failed mid-run (see log). Those items will not resurface.',
                 $lost,
             ));
 

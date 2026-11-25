@@ -13,6 +13,7 @@ use Goldnead\Notifications\Sending\SentSnapshot;
 use Goldnead\Notifications\Types\TypeRegistry;
 use Goldnead\Suppression\Contracts\Gate as SuppressionGate;
 use Goldnead\Suppression\Exceptions\SuppressionCheckFailed;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -61,7 +62,18 @@ class MailChannel implements Channel, DeferredChannel
             return;
         }
 
-        $this->mail($item, $recipient, $address);
+        $outcome = $this->mail($item, $recipient, $address);
+
+        if ($outcome->isRetry()) {
+            Log::error(
+                'Notifications: immediate mail was not sent, and nothing will retry it. Use notifyDeferred() for mail that must arrive.',
+                [
+                    'notification_item_id' => $item->getKey(),
+                    'type' => $item->type,
+                    'outcome_code' => $outcome->outcomeCode,
+                ]
+            );
+        }
     }
 
     public function sendDeferred(NotificationItem $item, Identity $recipient): DeferredChannelOutcome
@@ -139,8 +151,29 @@ class MailChannel implements Channel, DeferredChannel
         // Erst jetzt. Ein Zeiger, der vor dem Versand gesetzt wird, laesst eine
         // Mail, die nie das Haus verliess, auf der Detailseite wie eine
         // zugestellte aussehen.
+        //
+        // Die Mail ist da, wenn wir hier ankommen. Faellt nur das Speichern
+        // des Zeigers aus, darf das nicht als Transportfehler gelten: die
+        // Zeile ginge in retry und der Empfaenger bekaeme dieselbe Mail
+        // mehrfach. Also loggen und trotzdem als angenommen melden.
         if ($snapshotId !== null) {
-            $item->forceFill(['email_template_snapshot_id' => $snapshotId])->save();
+            try {
+                // Eigene (Savepoint-)Transaktion: dispatchPending haelt eine
+                // aeussere offen, und auf Postgres macht ein fehlgeschlagenes
+                // Statement darin sonst die ganze Transaktion unbrauchbar,
+                // sodass die Zeile doch nicht als angenommen verbucht wird.
+                DB::transaction(
+                    fn () => $item->forceFill(['email_template_snapshot_id' => $snapshotId])->save()
+                );
+            } catch (\Throwable $e) {
+                // Das Modell nicht mit einer ungespeicherten Aenderung zurueckgeben.
+                $item->syncOriginal();
+                Log::error(
+                    'Notifications: mail went out but the snapshot pointer could not be saved; '
+                    .'the delivery counts as accepted so the mail is not sent again.',
+                    ['notification_item_id' => $item->getKey(), 'exception' => $e::class, 'message' => $e->getMessage()]
+                );
+            }
         }
 
         return DeferredChannelOutcome::accepted(DeferredChannelOutcome::CODE_ACCEPTED_BY_TRANSPORT);
