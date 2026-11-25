@@ -14,6 +14,9 @@ use Illuminate\Console\Command;
  * and its mail reputation, not ours. An unbounded worker would also hold row
  * locks for as long as the transport is slow, which is why the limit exists
  * at all.
+ *
+ * Exit code: failure when a row ended `failed` in this run (see the log for the outcome
+ * code), so a host's cron monitoring notices dead mails.
  */
 class DispatchPendingCommand extends Command
 {
@@ -36,6 +39,7 @@ class DispatchPendingCommand extends Command
             $counts['failed'],
         ));
 
-        return self::SUCCESS;
+        // A row that ended `failed` is a delivery that will never go out: the run must not look green to cron.
+        return $counts['failed'] > 0 ? self::FAILURE : self::SUCCESS;
     }
 }

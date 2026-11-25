@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `notifications:dispatch-pending` exits with a failure code when a row ended `failed` in the run (it returned success regardless), and a delivery that fails for good now writes a `Log::error` with its outcome code, channel and attempt count. A host's cron monitoring and log now see dead mails; before, a broken sender identity or a suppression lookup that stayed down killed every mail unseen.
+
 ## 1.12.0 — 2026-10-17
 
 ### Changed
